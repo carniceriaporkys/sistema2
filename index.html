@@ -1,0 +1,2658 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Porkys C.A. - Sistema Integral Bimonetario</title>
+  
+  <!-- FIREBASE SDK COMPAT (Estable para web y sincronización en tiempo real) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    :root {
+      --primary: #c62828;
+      --primary-dark: #8e0000;
+      --dark: #121212;
+      --light: #f4f6f8;
+      --card: #ffffff;
+      --success: #2e7d32;
+      --accent: #1976d2;
+      --warning: #f57f17;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+    body { background-color: var(--light); color: #333; padding-bottom: 40px; }
+    
+    /* MODAL DE SEGURIDAD / PIN */
+    .login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+    .login-card { background: white; padding: 30px; border-radius: var(--radius); text-align: center; max-width: 350px; width: 90%; box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+    .login-card h2 { color: var(--primary); margin-bottom: 10px; font-size: 1.2rem; }
+    .login-card p { font-size: 0.82rem; color: #666; margin-bottom: 15px; }
+
+    /* MODAL FLOTANTE DE CONFIRMACIÓN DE TASAS */
+    .modal-tasa-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 9998; }
+    .modal-tasa-card { background: white; padding: 22px; border-radius: var(--radius); width: 360px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 10px; }
+    .header { background: var(--dark); color: white; padding: 14px; border-radius: var(--radius); text-align: center; margin-bottom: 12px; }
+    .header h1 { font-size: 1.15rem; }
+    .header p { font-size: 0.8rem; color: #aaa; margin-top: 3px; }
+    
+    input[type="text"], textarea, select { text-transform: uppercase; }
+
+    .banner-alerta { display: none; padding: 12px; border-radius: var(--radius); margin-bottom: 12px; font-weight: bold; font-size: 0.88rem; border-left: 6px solid; }
+
+    .panel-tasas { background: #222; color: white; padding: 10px; border-radius: var(--radius); margin-bottom: 10px; }
+    .panel-tasas h3 { font-size: 0.85rem; color: #ff8a80; margin-bottom: 4px; }
+    .aviso-bcv { background: #fff3cd; color: #856404; padding: 6px; border-radius: 6px; font-size: 0.78rem; font-weight: bold; margin-bottom: 6px; text-align: center; display: flex; justify-content: space-between; align-items: center; }
+
+    .menu-modulos { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+    .btn-modulo { padding: 10px 12px; background: #e0e0e0; border: none; border-radius: 6px; font-weight: bold; font-size: 0.85rem; cursor: pointer; text-align: left; }
+    .btn-modulo.active { background: var(--primary); color: white; }
+    
+    .modulo-content { display: none; }
+    .modulo-content.active { display: block; }
+
+    .card { background: var(--card); padding: 15px; border-radius: var(--radius); box-shadow: 0 4px 8px rgba(0,0,0,0.05); margin-bottom: 12px; }
+    .card h2 { color: var(--primary); font-size: 1.05rem; border-bottom: 2px solid var(--light); padding-bottom: 6px; margin-bottom: 10px; }
+    .card h3 { color: #444; font-size: 0.9rem; margin: 10px 0 6px 0; }
+
+    .form-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .form-group { flex: 1; min-width: 130px; }
+    label { display: block; font-weight: 600; font-size: 0.78rem; margin-bottom: 3px; color: #444; }
+    input, select { width: 100%; padding: 9px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.88rem; }
+    input[readonly] { background-color: #eee; font-weight: bold; }
+
+    .resumen-box { background: #fdf2f2; border-left: 4px solid var(--primary); padding: 12px; border-radius: 6px; margin-top: 10px; display: none; }
+    .monto-principal { font-size: 1.15rem; font-weight: bold; color: var(--dark); }
+    .desglose-linea { font-size: 0.82rem; color: #444; margin-top: 3px; display: flex; justify-content: space-between; border-bottom: 1px dashed #ddd; padding-bottom: 2px; }
+
+    .btn-action { width: 100%; background: var(--primary); color: white; border: none; padding: 11px; border-radius: 6px; font-weight: bold; font-size: 0.9rem; cursor: pointer; margin-top: 8px; }
+    .btn-accent { background: var(--accent); }
+    .btn-danger { background: #dc3545; color: white; border: none; padding: 6px 10px; border-radius: 4px; font-weight: bold; font-size: 0.78rem; cursor: pointer; }
+    .btn-success { background: #2e7d32; color: white; border: none; padding: 6px 10px; border-radius: 4px; font-weight: bold; font-size: 0.78rem; cursor: pointer; }
+    .btn-warning { background: var(--warning); color: white; border: none; padding: 6px 10px; border-radius: 4px; font-weight: bold; font-size: 0.78rem; cursor: pointer; }
+
+    .table-responsive { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 8px; }
+    th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+    th { background: #f1f1f1; }
+
+    .alert-box { padding: 8px; border-radius: 6px; margin-top: 8px; font-weight: 700; text-align: center; font-size: 0.8rem; display: none; }
+    .alert-box.success { background-color: #d4edda; color: #155724; display: block; }
+    .alert-box.error { background-color: #f8d7da; color: #721c24; display: block; }
+
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-top: 10px; }
+    .kpi-box { background: #f8f9fa; border-left: 4px solid var(--primary); padding: 8px; border-radius: 4px; }
+    .kpi-title { font-size: 0.7rem; color: #666; font-weight: bold; text-transform: uppercase; }
+    .kpi-value { font-size: 0.9rem; font-weight: bold; color: var(--dark); }
+
+    .panel-confirmacion { background: #fff8e1; border: 1px solid #ffb300; padding: 12px; border-radius: 6px; margin-top: 10px; display: none; text-align: center; }
+    .alerta-merma-critica { background: #F8D7DA; border: 2px solid #DC3545; color: #721C24; padding: 10px; border-radius: 6px; font-weight: bold; font-size: 0.85rem; margin-top: 10px; text-align: center; display: none; }
+    
+    .cat-header { background: #e0f2fe; color: #0369a1; padding: 6px 10px; font-weight: bold; font-size: 0.85rem; margin-top: 12px; border-radius: 4px; border-left: 4px solid #0284c7; }
+  </style>
+</head>
+<body>
+
+<!-- PANTALLA DE ACCESO -->
+<div id="loginOverlay" class="login-overlay">
+  <div class="login-card">
+    <h2>🥩 Porkys C.A.</h2>
+    <p>Ingrese la contraseña de administración para acceder al sistema:</p>
+    <input type="password" id="inputPinAcceso" placeholder="Contraseña..." style="margin-bottom: 10px; text-align: center; font-size: 1rem;" onkeydown="if(event.key==='Enter') verificarAcceso()">
+    <button class="btn-action" onclick="verificarAcceso()">Ingresar al Sistema</button>
+    <div id="errorLogin" style="color: red; font-size: 0.78rem; margin-top: 8px; font-weight: bold;"></div>
+  </div>
+</div>
+
+<!-- MODAL FLOTANTE DE CONFIRMACIÓN DE TASAS -->
+<div id="modalConfirmarTasa" class="modal-tasa-overlay">
+  <div class="modal-tasa-card">
+    <h3 style="color:var(--primary); margin-bottom:8px;">💱 Verificación de Tasas Cambiarias</h3>
+    <p id="txtMensajeTasaFlotante" style="font-size:0.85rem; margin-bottom:10px; color:#444; line-height:1.4; white-space:pre-line;"></p>
+    <div style="background:#fff3cd; border:1px solid #ffe8a1; padding:8px; border-radius:6px; margin-bottom:12px; font-size:0.75rem; color:#856404; font-weight:bold;">
+      ⚠️ Recuerde que una tasa desactualizada puede generar discrepancias contables.
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn-success" style="flex:1;" onclick="ejecutarAccionConTasaConfirmada()">Confirmar y Guardar</button>
+      <button class="btn-danger" style="flex:1;" onclick="cerrarModalTasa()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="container" id="mainContainer">
+  <div class="header">
+    <h1>🥩 Porkys C.A. - Sistema Integral Bimonetario</h1>
+    <p>Módulo Administrativo y de Control de Inventario (Sincronizado)</p>
+  </div>
+
+  <!-- BANNER DE ALERTA DE VENCIMIENTOS DE PAGOS (CxP) -->
+  <div id="bannerAlertaVencimientos" class="banner-alerta">
+    <div id="contenidoAlertaVencimiento"></div>
+  </div>
+
+  <!-- PANEL DE TASAS CAMBIARIAS -->
+  <div class="panel-tasas">
+    <div id="estadoTasaBcv" class="aviso-bcv">
+      <span>🌐 Conectando con la base de datos en la nube...</span>
+      <button onclick="consultarTasaBcv(true)" style="background:#856404; color:white; border:none; padding:3px 8px; border-radius:4px; font-size:0.7rem; cursor:pointer;">🔄 Refrescar Tasa BCV</button>
+    </div>
+    <h3>💱 Tasas Cambiarias del Día (Liquidación y Conversión)</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label style="color:#aaa;">Tasa BCV Oficial (Bs):</label>
+        <input type="text" id="tasaBcvGlobal" value="60,00" oninput="validarMascara(this); actualizarSistema();" style="background:#333; color:white; border:1px solid #555;">
+      </div>
+      <div class="form-group">
+        <label style="color:#aaa;">Tasa Paralelo / Mercado (Bs):</label>
+        <input type="text" id="tasaParaleloGlobal" value="63,50" oninput="validarMascara(this); actualizarSistema();" style="background:#333; color:white; border:1px solid #555;">
+      </div>
+    </div>
+  </div>
+
+  <!-- MENÚ DE NAVEGACIÓN -->
+  <div class="menu-modulos">
+    <button class="btn-modulo active" onclick="verModulo('m-entradas', this)">1. 🚚 Recepción de Ganado, Proteínas y Mercancía</button>
+    <button class="btn-modulo" onclick="verModulo('m-desposte', this)">2. 📋 Pizarra de Desposte y Producción Chorizo</button>
+    <button class="btn-modulo" onclick="verModulo('m-precios', this)">3. 🏷️ Precios Mostrador</button>
+    <button class="btn-modulo" onclick="verModulo('m-cava', this)">4. 📦 Cava e Inventario por Categorías</button>
+    <button class="btn-modulo" onclick="verModulo('m-valery', this)">5. 📊 Cierre Diario Valery y Arqueo</button>
+    <button class="btn-modulo" onclick="verModulo('m-gastos', this)" style="background:#d9534f; color:white;">6. 💸 Control de Gastos Diarios y Salidas</button>
+    <button class="btn-modulo" onclick="verModulo('m-reportes', this)" style="background:#1565c0; color:white;">7. 📑 Central de Reportes Integrales</button>
+  </div>
+
+  <!-- MÓDULO 1: RECEPCIÓN DE GANADO, PROTEÍNAS Y MERCANCÍA -->
+  <div id="m-entradas" class="modulo-content active">
+    
+    <!-- 1. RECEPCIÓN DE GANADO EN CANAL -->
+    <div class="card" style="border-left: 5px solid var(--primary);">
+      <h2 id="tituloSeccionRecepcion">🚚 1. Recepción de Ganado en Canal y Trastes Detallados</h2>
+      <div style="background: #e3f2fd; border: 1px solid #90caf9; padding: 10px; border-radius: 6px; margin-bottom: 12px;">
+        <label style="cursor: pointer; display: flex; align-items: center; gap: 8px; color: #0d47a1; font-weight: bold;">
+          <input type="checkbox" id="checkVerificoTasas" style="width: 18px; height: 18px;" onchange="toggleFormularioLote()">
+          <span>✅ Confirmo que verifiqué las tasas BCV y Paralelo del día antes de registrar este lote.</span>
+        </label>
+      </div>
+
+      <form id="formEntradaUnificada" onsubmit="prepararLoteGanado(event)">
+        <input type="hidden" id="editandoLoteId" value="">
+        <div class="form-row">
+          <div class="form-group"><label>Tipo Documento:</label>
+            <select id="docTipo" class="campo-enter"><option value="FACTURA">Factura Fiscal</option><option value="RECIBO">Recibo / Nota de Entrega</option></select>
+          </div>
+          <div class="form-group"><label>N° Documento:</label><input type="text" id="docNro" class="input-bloqueado-tasa campo-enter" placeholder="EJ: F-001024" oninput="this.value = this.value.toUpperCase()" disabled required></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Lote ID:</label><input type="text" id="loteId" class="input-bloqueado-tasa campo-enter" placeholder="EJ: LOTE-01" oninput="this.value = this.value.toUpperCase()" disabled required></div>
+          <div class="form-group"><label>Hato / Proveedor:</label><input type="text" id="proveedor" class="input-bloqueado-tasa campo-enter" placeholder="EJ: HATO EL DIAMANTE" oninput="this.value = this.value.toUpperCase()" disabled required></div>
+          <div class="form-group">
+            <label>Categoría / Sexo:</label>
+            <select id="sexoGanado" class="input-bloqueado-tasa campo-enter" disabled>
+              <option value="TORO">Toro / Novillo</option>
+              <option value="VACA">Vaca</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Fecha Recepción:</label><input type="date" id="fechaLote" class="input-bloqueado-tasa campo-enter" disabled required></div>
+          <div class="form-group"><label>Modalidad de Pago / Crédito:</label>
+            <select id="modalidadPagoLote" class="input-bloqueado-tasa campo-enter" disabled onchange="toggleDiasCredito(); calcularPreviewLote();">
+              <option value="MIXTO_CREDITO">Mixto Crédito (50% BCV / 50% Paralelo)</option>
+              <option value="CONTADO_BCV">Contado 100% BCV</option>
+              <option value="CONTADO_PARALELO">Contado 100% Paralelo</option>
+              <option value="MIXTO_CONTADO">Mixto Contado (50% BCV / 50% Paralelo)</option>
+            </select>
+          </div>
+          <div class="form-group" id="grupoDiasCredito">
+            <label>Días de Crédito:</label>
+            <input type="text" id="diasCredito" class="input-bloqueado-tasa campo-enter" value="15" disabled oninput="formatearInputMiles(this); calcularPreviewLote()" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Kg Brutos (Canal):</label><input type="text" id="kgBrutos" class="input-bloqueado-tasa campo-enter" placeholder="0,00" disabled oninput="validarMascara(this); calcularPreviewLote();" required></div>
+          <div class="form-group"><label>Costo Canal ($/Kg):</label><input type="text" id="precioCanal" class="input-bloqueado-tasa campo-enter" placeholder="5,00" disabled oninput="validarMascara(this); calcularPreviewLote();" required></div>
+        </div>
+
+        <div style="background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px dashed #ccc; margin-bottom: 10px;">
+          <div class="form-row" style="align-items: center; margin-bottom: 6px;">
+            <div class="form-group" style="flex: 2;">
+              <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                <input type="checkbox" id="trajoTraste" class="input-bloqueado-tasa" checked disabled onchange="toggleTrasteInput()" style="width: 18px; height: 18px;">
+                <strong>¿Este lote trajo su Traste / Vísceras?</strong>
+              </label>
+            </div>
+          </div>
+          <div class="form-row" id="grupoInputsTrasteDetallado">
+            <div class="form-group">
+              <label>Cantidad Traste (Kg / Unid):</label>
+              <input type="text" id="cantTrasteDetalle" class="input-bloqueado-tasa campo-enter" placeholder="0,00" disabled oninput="validarMascara(this); calcularPreviewLote();">
+            </div>
+            <div class="form-group">
+              <label>Precio Unitario Traste ($):</label>
+              <input type="text" id="precioTrasteDetalle" class="input-bloqueado-tasa campo-enter" placeholder="0,00" disabled oninput="validarMascara(this); calcularPreviewLote();">
+            </div>
+          </div>
+        </div>
+
+        <div class="resumen-box" id="resumenLoteBox">
+          <div style="font-size: 0.7rem; color: #666; font-weight: bold;">TOTALIZACIÓN Y DESGLOSE BIMONETARIO DE LA COMPRA DE GANADO</div>
+          <div class="monto-principal" id="txtLoteUsd">$0,00</div>
+          <div class="desglose-linea"><span>Compra Canal:</span><strong id="txtDesgloseCanal">$0,00</strong></div>
+          <div class="desglose-linea"><span>Compra Traste:</span><strong id="txtDesgloseTraste">$0,00</strong></div>
+          <div id="desgloseCalculoPagos"></div>
+          <div class="desglose-linea" id="lineaFechaVence"><span>Fecha Límite de Pago:</span><strong id="txtFechaVence" style="color:var(--primary);">--/--/----</strong></div>
+        </div>
+
+        <div style="display:flex; gap:8px;">
+          <button type="submit" id="btnGuardarLote" class="btn-action" disabled style="opacity: 0.6; cursor: not-allowed; flex:2;">Registrar Lote de Ganado y CxP</button>
+          <button type="button" id="btnCancelarEdicionLote" class="btn-danger" style="display:none; flex:1; margin-top:8px;" onclick="cancelarEdicionLote()">Cancelar Edición</button>
+        </div>
+        <div id="alertEntrada" class="alert-box"></div>
+      </form>
+    </div>
+
+    <!-- 2. RECEPCIÓN DE POLLO, CHULETA Y OVEJO -->
+    <div class="card" style="border-left: 5px solid var(--accent);">
+      <h2>📦 2. Recepción de Pollo, Chuleta y Ovejo (Por Kilos)</h2>
+      <form id="formEntradaPolloCochino" onsubmit="prepararPolloCochino(event)">
+        <input type="hidden" id="editandoProtId" value="">
+        <div class="form-row">
+          <div class="form-group"><label>Proveedor / Distribuidora:</label><input type="text" id="provPolloCochino" class="campo-enter" placeholder="EJ: DISTRIBUIDORA" oninput="this.value = this.value.toUpperCase()" required></div>
+          <div class="form-group"><label>N° Factura / Nota:</label><input type="text" id="nroFactPolloCochino" class="campo-enter" placeholder="EJ: F-9920" oninput="this.value = this.value.toUpperCase()" required></div>
+          <div class="form-group"><label>Fecha Recepción:</label><input type="date" id="fechaPolloCochino" class="campo-enter" required></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Seleccionar Proteína:</label>
+            <select id="itemPolloCochino" class="campo-enter">
+              <option value="POLLO CARIDAD">POLLO CARIDAD (KG)</option>
+              <option value="POLLO PEPOLLO">POLLO PEPOLLO (KG)</option>
+              <option value="CHULETA DE CERDO">CHULETA DE CERDO (KG)</option>
+              <option value="OVEJO">OVEJO (KG)</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Cantidad Comprada (KG):</label><input type="text" id="kgPolloCochino" class="campo-enter" placeholder="0,00" oninput="validarMascara(this); calcularPreviewPolloCochino();" required></div>
+          <div class="form-group"><label>Costo por Kilo ($):</label><input type="text" id="costoKgPolloCochino" class="campo-enter" placeholder="0,00" oninput="validarMascara(this); calcularPreviewPolloCochino();" required></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Modalidad de Pago / Crédito:</label>
+            <select id="modPolloCochino" class="campo-enter" onchange="toggleDiasCreditoPollo(); calcularPreviewPolloCochino();">
+              <option value="MIXTO_CREDITO">Mixto Crédito (50% BCV / 50% Paralelo)</option>
+              <option value="CONTADO_BCV">Contado 100% BCV</option>
+              <option value="CONTADO_PARALELO">Contado 100% Paralelo</option>
+              <option value="MIXTO_CONTADO">Mixto Contado (50% BCV / 50% Paralelo)</option>
+            </select>
+          </div>
+          <div class="form-group" id="grupoDiasCreditoPollo"><label>Días de Crédito:</label><input type="text" id="diasPolloCochino" class="campo-enter" value="15" oninput="formatearInputMiles(this); calcularPreviewPolloCochino();"></div>
+        </div>
+
+        <div class="resumen-box" id="resumenPolloBox">
+          <div style="font-size: 0.7rem; color: #666; font-weight: bold;">TOTALIZACIÓN Y DESGLOSE BIMONETARIO DE LA COMPRA DE PROTEÍNAS</div>
+          <div class="monto-principal" id="txtPolloUsd">$0,00</div>
+          <div id="desgloseCalculoPollo"></div>
+          <div class="desglose-linea" id="lineaFechaVencePollo"><span>Fecha Límite de Pago:</span><strong id="txtFechaVencePollo" style="color:var(--primary);">--/--/----</strong></div>
+        </div>
+
+        <div style="display:flex; gap:8px;">
+          <button type="submit" id="btnRegPollo" class="btn-action btn-accent" style="flex:2;">Registrar Compra y Sumar a Cava</button>
+          <button type="button" id="btnCancelarEdicionProt" class="btn-danger" style="display:none; flex:1; margin-top:8px;" onclick="cancelarEdicionProt()">Cancelar Edición</button>
+        </div>
+        <div id="alertPolloCochino" class="alert-box"></div>
+      </form>
+    </div>
+
+    <!-- 3. RECEPCIÓN RÁPIDA DE VÍVERES Y MARGEN (%) -->
+    <div class="card" style="border-left: 5px solid var(--warning); background: #fffdf9;">
+      <h2>📥 3. Recepción Rápida: Facturas por Margen (%) y Creador de Categorías</h2>
+      <p style="font-size:0.78rem; color:#555; margin-bottom:8px;">Agregue compras de mercancía por categoría. Puede seleccionar una existente o crear una totalmente nueva al vuelo.</p>
+      
+      <form id="formFacturaMargen" onsubmit="prepararFacturaMargen(event)">
+        <input type="hidden" id="editandoMgId" value="">
+        <div class="form-row">
+          <div class="form-group"><label>Proveedor / Distribuidora / Ambulante:</label><input type="text" id="mgProveedor" class="campo-enter" placeholder="EJ: PROVEEDOR EVENTUAL" oninput="this.value = this.value.toUpperCase()" required></div>
+          <div class="form-group"><label>N° Factura / Nota / Recibo:</label><input type="text" id="mgNroFact" class="campo-enter" placeholder="EJ: NOTA-01" oninput="this.value = this.value.toUpperCase()" required></div>
+          <div class="form-group"><label>Fecha Recepción:</label><input type="date" id="mgFecha" class="campo-enter" required></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Categoría de la Mercancía:</label>
+            <select id="mgCategoriaSelect" class="campo-enter" onchange="evaluarNuevaCategoriaOption()">
+            </select>
+          </div>
+          <div class="form-group" id="grupoNuevaCategoriaInput" style="display:none; background:#fff3cd; padding:4px; border-radius:6px; border:1px solid #ffe8a1;">
+            <label style="color:#856404;">✏️ Escriba el nombre de la NUEVA categoría:</label>
+            <input type="text" id="mgNuevaCategoriaInput" class="campo-enter" placeholder="EJ: COSMÉTICOS" oninput="this.value = this.value.toUpperCase()">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Monto Factura en Dólares ($):</label>
+            <input type="text" id="mgMontoUsd" class="campo-enter" placeholder="0,00" oninput="validarMascara(this); sincronizarMontoMargenBs(); calcularPreviewMargen();">
+          </div>
+          <div class="form-group">
+            <label>O Monto Factura en Bolívares (Bs):</label>
+            <input type="text" id="mgMontoBs" class="campo-enter" placeholder="0,00" oninput="validarMascara(this); sincronizarMontoMargenUsd(); calcularPreviewMargen();">
+          </div>
+          <div class="form-group">
+            <label>Porcentaje de Ganancia (%):</label>
+            <input type="text" id="mgPorcentaje" class="campo-enter" placeholder="30" value="30" oninput="validarMascara(this); calcularPreviewMargen();" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group"><label>Modalidad de Pago / Crédito:</label>
+            <select id="mgModalidad" class="campo-enter" onchange="toggleMargenCredito(); calcularPreviewMargen();">
+              <option value="MIXTO_CREDITO">Mixto Crédito (50% BCV / 50% Paralelo)</option>
+              <option value="CONTADO_BCV">Contado 100% BCV</option>
+              <option value="CONTADO_PARALELO">Contado 100% Paralelo</option>
+              <option value="MIXTO_CONTADO">Mixto Contado (50% BCV / 50% Paralelo)</option>
+            </select>
+          </div>
+          <div class="form-group" id="mgGrupoDias"><label>Días de Crédito:</label><input type="text" id="mgDias" class="campo-enter" value="15" oninput="formatearInputMiles(this); calcularPreviewMargen();"></div>
+        </div>
+
+        <div class="resumen-box" id="resumenMargenBox" style="background:#fff3cd; border-left-color:var(--warning);">
+          <div style="font-size: 0.7rem; color: #666; font-weight: bold;">PROYECCIÓN FINANCIERA DE LA COMPRA ($ Y BS)</div>
+          <div class="monto-principal" id="mgTxtVentaProyectada">$0,00 | Bs. 0,00</div>
+          <div class="desglose-linea"><span>Inversión Factura:</span><strong id="mgTxtInversion">$0,00 (Bs. 0,00)</strong></div>
+          <div class="desglose-linea"><span>Ganancia Neta Estimada:</span><strong id="mgTxtGanancia" style="color:var(--success);">$0,00 (Bs. 0,00)</strong></div>
+          <div class="desglose-linea" id="mgLineaVence"><span>Fecha Límite de Pago:</span><strong id="mgTxtVence" style="color:var(--primary);">--/--/----</strong></div>
+        </div>
+
+        <div style="display:flex; gap:8px;">
+          <button type="submit" id="btnRegMargen" class="btn-action" style="background:var(--warning); color:white; flex:2;">📥 Registrar Nota/Factura y Cuentas por Pagar (CxP)</button>
+          <button type="button" id="btnCancelarEdicionMg" class="btn-danger" style="display:none; flex:1; margin-top:8px;" onclick="cancelarEdicionMg()">Cancelar Edición</button>
+        </div>
+        <div id="alertMargen" class="alert-box"></div>
+      </form>
+    </div>
+
+    <!-- HISTORIAL DE DEUDAS Y CXP -->
+    <div class="card">
+      <h2>📜 Cuentas por Pagar e Historial (Liquidación y Abonos a Crédito)</h2>
+      <div id="panelAbonoInline" style="background:#e8f4fd; border:1px solid #b6e0fe; padding:12px; border-radius:6px; margin-bottom:10px; display:none;">
+        <h3 id="tituloAbonoInline" style="color:#0d47a1; margin-top:0;">💳 Registrar Abono / Pago a Crédito</h3>
+        <p id="subtituloAbonoInline" style="font-size:0.8rem; color:#333; margin-bottom:6px;"></p>
+        <div class="form-row" style="align-items: flex-end;">
+          <div class="form-group">
+            <label>Monto a Abonar en Dólares ($):</label>
+            <input type="text" id="inputMontoAbono" placeholder="0,00" oninput="validarMascara(this)">
+          </div>
+          <div class="form-group" style="display:flex; gap:6px;">
+            <button type="button" class="btn-success" style="flex:1;" onclick="ejecutarAbonoInline()">Confirmar Pago</button>
+            <button type="button" class="btn-danger" style="flex:1;" onclick="cancelarAbonoInline()">Cancelar</button>
+          </div>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table>
+          <thead><tr><th>Vence</th><th>Doc / Ref</th><th>Proveedor</th><th>Total / Pendiente ($)</th><th>Deuda Actual en Bs</th><th>Estatus</th><th>Acción</th></tr></thead>
+          <tbody id="tablaHistorialGeneral"><tr><td colspan="7" style="text-align:center;">Sin cuentas registradas.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MÓDULO 2: PIZARRA DE DESPOSTE -->
+  <div id="m-desposte" class="modulo-content">
+    <div class="card">
+      <h2>📋 Pizarra Blanca (Desposte de Canal de Res y Despiece de Trastes)</h2>
+      <form id="formDesposte" onsubmit="prepararGuardarDesposte(event)">
+        <div class="form-group">
+          <label>Seleccionar Lote de Ganado Activo para Despostar:</label>
+          <select id="selectLoteDesposte" class="campo-enter" onchange="cargarEstructuraDesposte()"></select>
+        </div>
+        <div class="form-row" style="margin-top:6px;">
+          <div class="form-group"><label>Kg Brutos Canal:</label><input type="text" id="despKgCanal" readonly></div>
+          <div class="form-group"><label>Costo Ref ($/Kg):</label><input type="text" id="despCostoKg" readonly></div>
+        </div>
+
+        <div style="background:#fff3cd; border:1px solid #ffe8a1; padding:8px 10px; border-radius:6px; margin-top:8px; font-size:0.8rem; color:#856404; display:flex; justify-content:space-between; align-items:center;">
+          <span>ℹ️ <strong>Precios Mostrador Activos:</strong> Costilla ($<span id="lblPrecioCostillaCalc">0.00</span> | Bs. <span id="lblPrecioCostillaCalcBs">0,00</span>) y Lagarto ($<span id="lblPrecioLagartoCalc">0.00</span> | Bs. <span id="lblPrecioLagartoCalcBs">0,00</span>).</span>
+          <button type="button" onclick="verModulo('m-precios', document.querySelectorAll('.btn-modulo')[2])" style="background:#856404; color:white; border:none; padding:4px 8px; border-radius:4px; font-size:0.75rem; cursor:pointer;">✏️ Ajustar Precios</button>
+        </div>
+        
+        <hr style="margin: 10px 0; border: 0; border-top: 1px dashed #ccc;">
+        <h3>✂️ 1. Cortes de Carne, Hueso Rojo, Pellejo y Hueso Blanco</h3>
+        <div id="contenedorCortesDesposte"></div>
+
+        <div id="seccionTrasteDesposte" style="display:none;">
+          <hr style="margin: 10px 0; border: 0; border-top: 1px dashed #ccc;">
+          <h3>🫀 2. Despiece Quirúrgico del Traste (Asociado al Lote)</h3>
+          <div class="form-row"><div class="form-group"><label>Hígado (KG):</label><input type="text" class="traste-despiece-input campo-enter" data-pieza="HÍGADO" placeholder="0,00 KG" oninput="validarMascara(this); calcularAnalisisDesposte();"></div>
+          <div class="form-group"><label>Mondongo (KG):</label><input type="text" class="traste-despiece-input campo-enter" data-pieza="MONDONGO" placeholder="0,00 KG" oninput="validarMascara(this); calcularAnalisisDesposte();"></div></div>
+          <div class="form-row"><div class="form-group"><label>Bofe (KG):</label><input type="text" class="traste-despiece-input campo-enter" data-pieza="BOFE" placeholder="0,00 KG" oninput="validarMascara(this); calcularAnalisisDesposte();"></div>
+          <div class="form-group"><label>Corazón (UNID):</label><input type="text" class="traste-despiece-input campo-enter" data-pieza="CORAZÓN" placeholder="0 UNID" oninput="formatearInputMiles(this); calcularAnalisisDesposte();"></div></div>
+          <div class="form-row"><div class="form-group"><label>Patas (UNID):</label><input type="text" class="traste-despiece-input campo-enter" data-pieza="PATAS" placeholder="0 UNID" oninput="formatearInputMiles(this); calcularAnalisisDesposte();"></div>
+          <div class="form-group"><label>Lengua (UNID):</label><input type="text" class="traste-despiece-input campo-enter" data-pieza="LENGUA" placeholder="0 UNID" oninput="formatearInputMiles(this); calcularAnalisisDesposte();"></div></div>
+        </div>
+
+        <div id="cardCostoRealComerciante" style="background:#e8f5e9; border:1px solid #a5d6a7; border-left:5px solid #2e7d32; padding:12px; border-radius:6px; margin-top:12px; display:none;">
+          <h3 style="color:#1b5e20; margin-top:0; font-size:0.95rem;">💡 Análisis del Costo Real Neto de la Carne Limpia</h3>
+          <div class="desglose-linea"><span>Monto Total Pagado al Proveedor por el Lote:</span><strong id="lblTotalProveedorBs">$0,00 | Bs. 0,00</strong></div>
+          <div class="desglose-linea"><span>Recuperación Ref. (Costilla + Lagarto):</span><strong id="lblRecuperacionBs" style="color:#c62828;">- Bs. 0,00</strong></div>
+          <div class="desglose-linea"><span>Costo Neto Carga a la Carne:</span><strong id="lblCostoNetoBs" style="color:#1b5e20;">Bs. 0,00</strong></div>
+          <div class="desglose-linea"><span>Carne Limpia Neta (Suma de Cortes):</span><strong id="lblKgCarneLimpia">0,00 KG</strong></div>
+          <hr style="border:0; border-top:1px dashed #a5d6a7; margin:6px 0;">
+          <div class="desglose-linea" style="font-size:0.95rem;"><span><strong>Costo Real por Kilo de Carne:</strong></span><strong id="lblCostoRealBsKg" style="color:#1b5e20;">Bs. 0,00 / KG</strong></div>
+          <div class="desglose-linea" style="font-size:1.05rem;"><span style="color:#0d47a1;"><strong>Costo Real en Dólares (BCV):</strong></span><strong id="lblCostoRealUsdKg" style="color:#0d47a1; font-size:1.1rem;">$0,00 / KG</strong></div>
+        </div>
+
+        <div id="alertaMermaRoja" class="alerta-merma-critica">
+          ⚠️ ALERTA DE MERMA REGISTRADA (ENTRE 5 Y 15 KG): Se detectó una merma considerable en el desposte. Verifique los cortes.
+        </div>
+
+        <div id="alertaIncoherenciaKilos" class="alerta-merma-critica" style="background:#721C24; color:white; border-color:#900;">
+          ❌ ERROR CRÍTICO DE SUMA: Los kilos ingresados en la pizarra superan el peso bruto del camión. Verifique decimales o corregir cortes.
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi-box"><div class="kpi-title">Kg Aprovechados</div><div class="kpi-value" id="kpiApro">0,00 KG</div></div>
+          <div class="kpi-box"><div class="kpi-title">% Rendimiento</div><div class="kpi-value" id="kpiRend">0%</div></div>
+          <div class="kpi-box"><div class="kpi-title">Kg Merma</div><div class="kpi-value" id="kpiMerma" style="color:var(--primary);">0,00 KG</div></div>
+          <div class="kpi-box">
+            <div class="kpi-title">Pérdida Merma ($ / Bs)</div>
+            <div class="kpi-value" id="kpiMermaUsd" style="color:var(--primary);">$0,00 (Bs. 0,00)</div>
+          </div>
+        </div>
+
+        <button type="submit" id="btnAccionDesposte" class="btn-action" style="margin-top:10px;">Guardar Desposte y Sumar Todo a Cava</button>
+        
+        <div id="panelConfirmDesposte" class="panel-confirmacion">
+          <p style="font-size:0.85rem; font-weight:bold; color:#b71c1c; margin-bottom:8px;">⚠️ ¿Está seguro de guardar este desposte?</p>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" class="btn-success" style="flex:1;" onclick="ejecutarGuardarDesposte()">Sí, Guardar</button>
+            <button type="button" class="btn-danger" style="flex:1;" onclick="cancelarGuardarDesposte()">Cancelar</button>
+          </div>
+        </div>
+
+        <div id="alertDesposte" class="alert-box"></div>
+      </form>
+    </div>
+
+    <!-- PRODUCCIÓN DIARIA DE CHORIZO -->
+    <div class="card" style="border-left: 4px solid var(--success);">
+      <h2>🥩 Producción Diaria / Excepcional de Pasta de Chorizo</h2>
+      <form id="formProdChorizo" onsubmit="registrarProduccionChorizo(event)">
+        <div class="form-row">
+          <div class="form-group"><label>Fecha de Elaboración:</label><input type="date" id="fechaChorizo" class="campo-enter" required></div>
+          <div class="form-group"><label>Kilos de Pasta de Chorizo Obtenidos (KG):</label><input type="text" id="kgChorizoProducido" class="campo-enter" placeholder="0,00 KG" oninput="validarMascara(this)" required></div>
+        </div>
+        <button type="submit" class="btn-action btn-success" style="margin-top:4px;">📥 Sumar Kilos de Pasta de Chorizo a la Cava</button>
+        <div id="alertChorizo" class="alert-box"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MÓDULO 3: PRECIOS MOSTRADOR -->
+  <div id="m-precios" class="modulo-content">
+    <div class="card">
+      <h2>🏷️ Pizarra de Precios Oficiales Mostrador</h2>
+      <p style="font-size:0.78rem; color:#666; margin-bottom:8px;">Modifique los precios en dólares directamente y avance con la tecla Enter.</p>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr style="background:#222; color:white;">
+              <th>Rubro / Pieza</th>
+              <th>Precio Venta ($ Editable)</th>
+              <th>Equivalente Mostrador (Bs BCV)</th>
+              <th>Costo Ref ($)</th>
+            </tr>
+          </thead>
+          <tbody id="tablaPreciosRes"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MÓDULO 4: CAVA E INVENTARIO -->
+  <div id="m-cava" class="modulo-content">
+    <div class="card" style="border-left: 5px solid var(--accent); background: #f0fdf4;">
+      <h2>📊 Resumen de Inventario Desglosado por Categoria</h2>
+      <div class="kpi-grid" style="margin-top:8px;">
+        <div class="kpi-box" style="border-left-color: var(--primary);">
+          <div class="kpi-title">1. Total Carnes de Res y Subproductos</div>
+          <div class="kpi-value" id="lblKilosResCava" style="color:var(--primary); font-size:1.1rem;">0,00 KG</div>
+        </div>
+        <div class="kpi-box" style="border-left-color: var(--accent);">
+          <div class="kpi-title">2. Chuleta, Pollo y Ovejo</div>
+          <div class="kpi-value" id="lblKilosOtrasProteinasCava" style="color:var(--accent); font-size:1.1rem;">0,00 KG</div>
+        </div>
+        <div class="kpi-box" style="border-left-color: var(--warning);">
+          <div class="kpi-title">3. Categorías de Mercancía Seca ($)</div>
+          <div class="kpi-value" id="lblCategoriasCountCava" style="color:var(--warning); font-size:1.1rem;">0 Categorías</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📦 Detalle de Cava e Inventario Bimonetario ($ / Bs)</h2>
+      <div id="contenedorCavaCategorizada"></div>
+    </div>
+  </div>
+
+  <!-- MÓDULO 5: CIERRE DIARIO VALERY -->
+  <div id="m-valery" class="modulo-content">
+    <div class="card">
+      <h2>📊 Cierre Diario Valery, Pesaje de Pulitura y Arqueo Multidivisa</h2>
+      <form id="formCierreValery" onsubmit="prepararCierreCaja(event)">
+        <div class="form-row">
+          <div class="form-group"><label>Fecha de Cierre:</label><input type="date" id="fechaCierre" class="campo-enter" required></div>
+          <div class="form-group">
+            <label>Kg Pulitura / Pellejo del Día:</label>
+            <input type="text" id="kgPulituraCierre" class="campo-enter" placeholder="0,00 KG" oninput="validarMascara(this);" value="" required>
+          </div>
+        </div>
+
+        <hr style="margin:12px 0; border:0; border-top:1px dashed #ccc;">
+        <h3>1. Venta de Proteínas y Carnicería Mostrador (Kilos / Unidades)</h3>
+        <div id="contenedorVentasRes"></div>
+
+        <hr style="margin:12px 0; border:0; border-top:1px dashed #ccc;">
+        <h3>2. Venta de Mercancía Seca por Categoría ($ Vendido)</h3>
+        <div id="contenedorVentasCategoriasDinamicas"></div>
+
+        <hr style="margin:12px 0; border:0; border-top:1px dashed #ccc;">
+        <h3>3. Arqueo de Dinero Físico y Pagos Cobrados</h3>
+        <div class="form-row">
+          <div class="form-group"><label>Efectivo $ ($):</label><input type="text" id="cajaUsd" class="campo-enter" placeholder="0,00" oninput="validarMascara(this); calcularArqueoGanado();"></div>
+          <div class="form-group"><label>Efectivo Bs (Bs):</label><input type="text" id="cajaEfecBs" class="campo-enter" placeholder="0,00" oninput="formatearMonedaInput(this); calcularArqueoGanado();"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Punto de Venta (Bs):</label><input type="text" id="cajaPunto" class="campo-enter" placeholder="0,00" oninput="formatearMonedaInput(this); calcularArqueoGanado();"></div>
+          <div class="form-group"><label>Pago Móvil y Transferencia (Bs):</label><input type="text" id="cajaTransf" class="campo-enter" placeholder="0,00" oninput="formatearMonedaInput(this); calcularArqueoGanado();"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Crédito / CxP Tradicional ($):</label><input type="text" id="cajaCredito" class="campo-enter" placeholder="0,00" oninput="validarMascara(this); calcularArqueoGanado();"></div>
+          <div class="form-group" style="background: #e8f4fd; padding: 4px; border-radius: 6px; border: 1px dashed #90caf9;">
+            <label style="color: #0d47a1;">⚡ Crédito Cashea ($):</label>
+            <input type="text" id="cajaCashea" class="campo-enter" placeholder="0,00" oninput="validarMascara(this); calcularArqueoGanado();">
+          </div>
+        </div>
+
+        <div class="resumen-box" id="resumenArqueoBox" style="display:block; margin-top:10px;">
+          <div class="monto-principal" id="txtVentaTotalUsd">$0,00</div>
+          <div class="desglose-linea"><span>Venta Teórica Total en Bolívares (BCV):</span><strong id="txtVentaTotalBs">Bs. 0,00</strong></div>
+          <div class="desglose-linea"><span>Total Cobrado según Arqueo (Bs):</span><strong id="txtTotalArqueoBs">Bs. 0,00</strong></div>
+          <div class="desglose-linea" id="lblEstatusCuadre" style="font-weight:bold; margin-top:4px;"><span>Estatus de Caja:</span><strong>Cuadrado</strong></div>
+        </div>
+
+        <button type="submit" id="btnAccionCierre" class="btn-action" style="background:var(--success);">Archivar Cierre Diario y Pulitura</button>
+        
+        <div id="panelConfirmCierre" class="panel-confirmacion">
+          <p style="font-size:0.85rem; font-weight:bold; color:#b71c1c; margin-bottom:8px;">⚠️ ¿Está seguro que desea realizar el cierre diario?</p>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" class="btn-success" style="flex:1;" onclick="ejecutarCierreCaja()">Sí, Confirmar Cierre Diario</button>
+            <button type="button" class="btn-danger" style="flex:1;" onclick="cancelarCierreCaja()">Cancelar</button>
+          </div>
+        </div>
+
+        <div id="alertValery" class="alert-box"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MÓDULO 6: CONTROL DE GASTOS DIARIOS Y SALIDAS -->
+  <div id="m-gastos" class="modulo-content">
+    <div class="card" style="border-left: 5px solid #d9534f; background: #fffdfd;">
+      <h2>💸 Registro de Gastos Diarios y Salidas de Efectivo / Caja</h2>
+      <p style="font-size:0.78rem; color:#555; margin-bottom:10px;">Registre aquí el pago de sueldos, hielo, bolsas, fletes, viáticos u otros gastos operativos del negocio.</p>
+      
+      <form id="formGasto" onsubmit="registrarGastoNegocio(event)">
+        <div class="form-row">
+          <div class="form-group"><label>Fecha del Gasto:</label><input type="date" id="gastoFecha" class="campo-enter" required></div>
+          <div class="form-group">
+            <label>Tipo de Gasto:</label>
+            <select id="gastoCategoria" class="campo-enter">
+              <option value="SUELDOS Y SALARIOS">👷 SUELDOS Y SALARIOS</option>
+              <option value="GASTOS OPERATIVOS">⚡ GASTOS OPERATIVOS (Hielo, Bolsas, Luz, Flete)</option>
+              <option value="OTROS GASTOS">📦 OTROS GASTOS / RETIROS</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Descripción / Concepto:</label><input type="text" id="gastoConcepto" class="campo-enter" placeholder="EJ: PAGO DE HIELO O VIGILANCIA" oninput="this.value = this.value.toUpperCase()" required></div>
+          <div class="form-group"><label>Monto en Dólares ($):</label><input type="text" id="gastoMontoUsd" class="campo-enter" placeholder="0,00" oninput="validarMascara(this)" required></div>
+        </div>
+        <button type="submit" class="btn-action" style="background:#d9534f; margin-top:4px;">💸 Registrar Gasto y Salida de Caja</button>
+        <div id="alertGasto" class="alert-box"></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>📜 Historial de Gastos Registrados</h2>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr><th>Fecha</th><th>Categoría</th><th>Concepto</th><th>Monto ($)</th><th>Monto (Bs BCV)</th><th>Acción</th></tr>
+          </thead>
+          <tbody id="tablaHistorialGastos"><tr><td colspan="6" style="text-align:center;">Sin gastos registrados.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MÓDULO 7: CENTRAL DE REPORTES INTEGRALES -->
+  <div id="m-reportes" class="modulo-content">
+    
+    <!-- RESPALDO Y RESTAURACIÓN -->
+    <div class="card" style="border-left: 5px solid #1565c0; background: #e3f2fd;">
+      <h2>💾 Respaldo y Restauración de Base de Datos (Backup / Restaurar)</h2>
+      <p style="font-size:0.78rem; color:#333; margin-bottom:10px;">Descargue una copia de seguridad en formato JSON de toda la base de datos o adjunte un respaldo previo para restaurarla al instante.</p>
+      
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <button type="button" class="btn-action btn-accent" style="margin-top:0; flex:1;" onclick="exportarBaseDeDatosJSON()">📥 Exportar / Respaldar Base de Datos (.json)</button>
+        
+        <div style="flex:1; background:white; padding:6px; border-radius:6px; border:1px solid #90caf9; display:flex; align-items:center; gap:6px;">
+          <label style="font-size:0.75rem; color:#0d47a1; margin:0; cursor:pointer; font-weight:bold;">📂 Restaurar (Adjuntar JSON):</label>
+          <input type="file" id="inputArchivoRespaldo" accept=".json" onchange="importarBaseDeDatosJSON(event)" style="font-size:0.75rem; padding:2px;">
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 12px; display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn-action btn-success" onclick="exportarReportesExcel()" style="flex:2; font-size: 0.95rem; padding: 12px; margin-top:0;">📥 Descargar Reportes Integrales a Excel (.xls)</button>
+      <button class="btn-action btn-danger" onclick="botonVaciarBaseDeDatosSeguro()" style="flex:1; font-size: 0.9rem; padding: 12px; margin-top:0;">🗑️ Vaciar Base de Datos</button>
+    </div>
+
+    <!-- REPORTE DE GANANCIAS -->
+    <div class="card" style="border-left: 5px solid #2e7d32; background:#f0fdf4;">
+      <h2>📈 Reporte General de Ganancias y Rentabilidad por Rango de Fechas</h2>
+      <div class="form-row" style="align-items:flex-end;">
+        <div class="form-group">
+          <label>Fecha Desde:</label>
+          <input type="date" id="repGananciaDesde" class="campo-enter">
+        </div>
+        <div class="form-group">
+          <label>Fecha Hasta:</label>
+          <input type="date" id="repGananciaHasta" class="campo-enter">
+        </div>
+        <div class="form-group">
+          <button type="button" class="btn-action btn-success" style="margin-top:0; padding:9px;" onclick="calcularReporteGanancias()">🔍 Generar Informe</button>
+        </div>
+      </div>
+
+      <div class="kpi-grid" style="margin-top:10px;">
+        <div class="kpi-box" style="border-left-color: #0d47a1;">
+          <div class="kpi-title">Ingresos Totales Ventas</div>
+          <div class="kpi-value" id="kpiRepIngresosUsd" style="color:#0d47a1; font-size:1.1rem;">$0,00</div>
+          <div style="font-size:0.75rem; color:#555;" id="kpiRepIngresosBs">Bs. 0,00</div>
+        </div>
+        <div class="kpi-box" style="border-left-color: var(--primary);">
+          <div class="kpi-title">Costo Mercancía / Inversión</div>
+          <div class="kpi-value" id="kpiRepCostosUsd" style="color:var(--primary); font-size:1.1rem;">$0,00</div>
+          <div style="font-size:0.75rem; color:#555;" id="kpiRepCostosBs">Bs. 0,00</div>
+        </div>
+        <div class="kpi-box" style="border-left-color: #d9534f;">
+          <div class="kpi-title">Total Gastos Operativos / Sueldos</div>
+          <div class="kpi-value" id="kpiRepGastosUsd" style="color:#d9534f; font-size:1.1rem;">$0,00</div>
+          <div style="font-size:0.75rem; color:#555;" id="kpiRepGastosBs">Bs. 0,00</div>
+        </div>
+        <div class="kpi-box" style="border-left-color: var(--success);">
+          <div class="kpi-title">Ganancia Neta Real</div>
+          <div class="kpi-value" id="kpiRepGananciaUsd" style="color:var(--success); font-size:1.1rem;">$0,00</div>
+          <div style="font-size:0.75rem; color:#555;" id="kpiRepGananciaBs">Bs. 0,00</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORTE DE STOCK CRÍTICO -->
+    <div class="card" style="border-left: 5px solid #d9534f; background:#fffdfd;">
+      <h2>⚠️ Reporte de Stock Crítico (Cortes y Proteínas por debajo de 15 KG)</h2>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr style="background:#d9534f; color:white;">
+              <th>Rubro / Pieza</th>
+              <th>Stock Actual</th>
+              <th>Unidad</th>
+              <th>Estado de Alerta</th>
+            </tr>
+          </thead>
+          <tbody id="tablaReporteStockCritico"><tr><td colspan="4" style="text-align:center;">Verificando stock...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- REPORTE DE RENDIMIENTO -->
+    <div class="card" style="border-left: 5px solid #8e0000; background:#fff9f9;">
+      <h2>📊 Historial de Rendimiento por Lote de Ganado Despostado</h2>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr style="background:#8e0000; color:white;">
+              <th>Lote ID</th>
+              <th>Proveedor / Hato</th>
+              <th>Kg Brutos Canal</th>
+              <th>Kg Carne Limpia</th>
+              <th>Rendimiento (%)</th>
+            </tr>
+          </thead>
+          <tbody id="tablaReporteRendimientoLotes"><tr><td colspan="5" style="text-align:center;">Sin lotes despostados registrados.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- REPORTE DE ENTRADAS -->
+    <div class="card" style="border-left: 4px solid #2e7d32; background:#f4fbf4;">
+      <h2>🥩 REPORTE OPERATIVO DE ENTRADAS (Carnicería, Cava y Mercancía)</h2>
+      <div class="table-responsive">
+        <table id="tablaExcelEntradasCarnicero">
+          <thead>
+            <tr style="background:#2e7d32; color:white;">
+              <th>Fecha</th>
+              <th>Doc / Lote / Nota</th>
+              <th>Proveedor / Hato</th>
+              <th>Mercancía / Rubro</th>
+              <th>Cantidad (KG / Unid)</th>
+              <th>Costo Unitario ($)</th>
+              <th>Costo Total ($)</th>
+              <th>Rendimiento / Detalle</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyReporteEntradasCarnicero"><tr><td colspan="8" style="text-align:center;">Sin entradas registradas.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- REPORTE 1: CUENTAS POR PAGAR -->
+    <div class="card" style="border-left: 4px solid var(--primary);">
+      <h2>💳 1. Reporte Consolidado de Cuentas por Pagar (Solo Compras a Crédito)</h2>
+      <div class="kpi-grid" style="margin-bottom:10px;">
+        <div class="kpi-box"><div class="kpi-title">Total Pendiente ($)</div><div class="kpi-value" id="kpiCxpTotalUsd" style="color:var(--primary);">$0,00</div></div>
+        <div class="kpi-box"><div class="kpi-title">Total Pendiente en Bs</div><div class="kpi-value" id="kpiCxpTotalBs" style="color:var(--primary);">Bs. 0,00</div></div>
+        <div class="kpi-box"><div class="kpi-title">Facturas Pendientes</div><div class="kpi-value" id="kpiCxpCantFacturas">0</div></div>
+      </div>
+      <div class="table-responsive">
+        <table id="tablaExcelCxp">
+          <thead><tr><th>Vencimiento</th><th>Proveedor</th><th>Documento / Rubro</th><th>Modalidad</th><th>Pendiente ($)</th><th>Total Bs (Bimonetario)</th></tr></thead>
+          <tbody id="tbodyReporteCxp"><tr><td colspan="6" style="text-align:center;">No hay cuentas por pagar pendientes.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- REPORTE 2: FACTURAS GLOBALES POR MARGEN -->
+    <div class="card" style="border-left: 4px solid var(--warning);">
+      <h2>🏷️ 2. Reporte de Facturas Globales por Margen</h2>
+      <div class="table-responsive">
+        <table id="tablaExcelMargenes">
+          <thead><tr><th>Fecha</th><th>Proveedor</th><th>Categoría</th><th>Inversión ($)</th><th>Margen (%)</th><th>Venta Proyectada ($)</th><th>Ganancia Estimada ($)</th></tr></thead>
+          <tbody id="tbodyReporteMargenes"><tr><td colspan="7" style="text-align:center;">Sin facturas globales registradas.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- REPORTE 3: CAVA E INVENTARIO GENERAL -->
+    <div class="card" style="border-left: 4px solid var(--accent);">
+      <h2>📦 3. Inventario General Consolidado (Cava y Anaqueles)</h2>
+      <div class="table-responsive">
+        <table id="tablaExcelCava">
+          <thead><tr><th>Rubro / Producto</th><th>Stock</th><th>Costo Total ($)</th><th>Costo Total (Bs)</th><th>Venta Total ($)</th><th>Venta Total (Bs)</th></tr></thead>
+          <tbody id="repTablaCava"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- REPORTE 4: HISTÓRICO DE CIERRES DIARIOS -->
+    <div class="card">
+      <h2>📊 4. Reporte de Ventas por Día y Arqueos de Caja</h2>
+      <div class="table-responsive">
+        <table id="tablaExcelCierres">
+          <thead><tr><th>Fecha</th><th>Pulitura (Kg)</th><th>Venta Teórica ($)</th><th>Venta Teórica (Bs)</th><th>Arqueo Real (Bs)</th><th>Estatus</th></tr></thead>
+          <tbody id="repTablaCierres"><tr><td colspan="6" style="text-align:center;">Sin cierres archivados todavía.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ==========================================
+  // CONFIGURACIÓN DE FIREBASE FIRESTORE (COMPAT)
+  // ==========================================
+  const firebaseConfig = {
+    apiKey: "AIzaSyCIbrLtsKIbJssgEHI1IPVzHZi9Jvop9uM",
+    authDomain: "porkyscontablecarnes.firebaseapp.com",
+    projectId: "porkyscontablecarnes",
+    storageBucket: "porkyscontablecarnes.firebasestorage.app",
+    messagingSenderId: "744203667701",
+    appId: "1:744203667701:web:7c8b456d8f0c5349265dbc",
+    measurementId: "G-6CE86G18YE"
+  };
+
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+  const db = firebase.firestore();
+  const PIN_ADMIN = "porkysadmin123";
+
+  // ==========================================
+  // BASE DE DATOS LOCAL
+  // ==========================================
+  let DB_GANADO = {
+    tasaBcv: 60.00,
+    tasaParalelo: 63.50,
+    cortesRes: {
+      "CARNE DE PRIMERA": { costo: 0, precio: 0, stock: 0, unidad: "KG" },
+      "CARNE DE SEGUNDA": { costo: 0, precio: 0, stock: 0, unidad: "KG" },
+      "SOLOMO / PUNTA / LOMITO": { costo: 0, precio: 0, stock: 0, unidad: "KG" },
+      "COSTILLA DE RES": { costo: 0, precio: 0, stock: 0, unidad: "KG" },
+      "LAGARTO CON HUESO": { costo: 0, precio: 0, stock: 0, unidad: "KG" },
+      "HUESO ROJO (HR)": { costo: 0, precio: 0, stock: 0, unidad: "KG" },
+      "PELLEJO / SEBO": { costo: 0, precio: 0, stock: 0, unidad: "KG" },
+      "HUESO BLANCO / ESQUELETO": { costo: 0, precio: 0, stock: 0, unidad: "KG" },
+      "CARNE MOLIDA": { costo: 0, precio: 0, stock: 0, unidad: "KG" },
+      "PASTA DE CHORIZO": { costo: 0, precio: 0, stock: 0, unidad: "KG" },
+      "HÍGADO": { costo: 0, precio: 0, stock: 0, unidad: "KG" },
+      "MONDONGO": { costo: 0, precio: 0, stock: 0, unidad: "KG" },
+      "BOFE": { costo: 0, precio: 0, stock: 0, unidad: "KG" },
+      "CORAZÓN": { costo: 0, precio: 0, stock: 0, unidad: "UNID" },
+      "PATAS": { costo: 0, precio: 0, stock: 0, unidad: "UNID" },
+      "LENGUA": { costo: 0, precio: 0, stock: 0, unidad: "UNID" },
+      "POLLO CARIDAD": { costo: 0, precio: 0, stock: 0, unidad: "KG" },
+      "POLLO PEPOLLO": { costo: 0, precio: 0, stock: 0, unidad: "KG" },
+      "CHULETA DE CERDO": { costo: 0, precio: 0, stock: 0, unidad: "KG" },
+      "OVEJO": { costo: 0, precio: 0, stock: 0, unidad: "KG" }
+    },
+    categoriasPersonalizadas: [],
+    lotes: [],
+    historial: [],
+    facturasMargen: [],
+    recepcionesCharcuteria: [],
+    recepcionesProteinas: [],
+    cierresDiarios: [],
+    lotesDespostadosHistorial: [],
+    gastosNegocio: []
+  };
+
+  let facturaEnProcesoAbono = null;
+  let accionPendienteConTasa = null;
+
+  function verificarAcceso() {
+    let pin = document.getElementById('inputPinAcceso').value.trim();
+    if (pin === PIN_ADMIN) {
+      document.getElementById('loginOverlay').style.display = 'none';
+      inicializarSistemaTrasLogin();
+    } else {
+      document.getElementById('errorLogin').innerText = "❌ Contraseña incorrecta. Intente nuevamente.";
+    }
+  }
+
+  function inicializarSistemaTrasLogin() {
+    iniciarEscuchaRealtime();
+    activarNavegacionEnter();
+  }
+
+  // Escucha en tiempo real (onSnapshot) con protección de foco en tasas
+  function iniciarEscuchaRealtime() {
+    const lbl = document.getElementById('estadoTasaBcv').querySelector('span');
+
+    db.collection("sistemaPorkys").doc("db_principal").onSnapshot((doc) => {
+      if (doc.exists) {
+        const data = doc.data();
+        if (data && data.cortesRes) {
+          DB_GANADO = data;
+          if(!DB_GANADO.facturasMargen) DB_GANADO.facturasMargen = [];
+          if(!DB_GANADO.recepcionesCharcuteria) DB_GANADO.recepcionesCharcuteria = [];
+          if(!DB_GANADO.recepcionesProteinas) DB_GANADO.recepcionesProteinas = [];
+          if(!DB_GANADO.lotesDespostadosHistorial) DB_GANADO.lotesDespostadosHistorial = [];
+          if(!DB_GANADO.categoriasPersonalizadas) DB_GANADO.categoriasPersonalizadas = [];
+          if(!DB_GANADO.gastosNegocio) DB_GANADO.gastosNegocio = [];
+
+          // Solo actualizamos los inputs de tasas si el usuario NO los está escribiendo en este momento
+          let inputBcv = document.getElementById('tasaBcvGlobal');
+          let inputParalelo = document.getElementById('tasaParaleloGlobal');
+
+          if (document.activeElement !== inputBcv && DB_GANADO.tasaBcv) {
+            inputBcv.value = fmtBs(DB_GANADO.tasaBcv);
+          }
+          if (document.activeElement !== inputParalelo && DB_GANADO.tasaParalelo) {
+            inputParalelo.value = fmtBs(DB_GANADO.tasaParalelo);
+          }
+
+          try { localStorage.setItem('porkys_db_respaldo_local', JSON.stringify(DB_GANADO)); } catch(e) {}
+        }
+        if(lbl) lbl.textContent = "🟢 Sincronizado en tiempo real con la nube (Firestore)";
+      } else {
+        if(lbl) lbl.textContent = "⚠️ Documento inicial creado en la nube.";
+        guardarDatosFirebase();
+      }
+
+      actualizarPantallaCompleta();
+
+    }, (error) => {
+      console.error("Error en la conexión con la nube:", error);
+      if(lbl) lbl.textContent = "🔴 Modo Offline / Usando memoria local";
+      cargarRespaldoLocal();
+    });
+  }
+
+  function cargarRespaldoLocal() {
+    try {
+      let b = localStorage.getItem('porkys_db_respaldo_local');
+      if (b) {
+        let parsed = JSON.parse(b);
+        if (parsed && parsed.cortesRes) {
+          DB_GANADO = parsed;
+        }
+      }
+    } catch(e) {}
+    actualizarPantallaCompleta();
+  }
+
+  function actualizarPantallaCompleta() {
+    actualizarSistema(false);
+    renderHistorialGeneral();
+    renderFormularioValery();
+    renderReportesGenerales();
+    renderHistorialGastos();
+    verificarVencimientosCxP();
+    poblarSelectoresDesposte();
+    poblarSelectorCategoriasMargen();
+  }
+
+  async function guardarDatosFirebase() {
+    try {
+      localStorage.setItem('porkys_db_respaldo_local', JSON.stringify(DB_GANADO));
+    } catch(e) {}
+
+    if (!db) return;
+    try {
+      await db.collection("sistemaPorkys").doc("db_principal").set(DB_GANADO);
+    } catch (e) {
+      console.error("Error al guardar en Firestore:", e);
+    }
+  }
+
+  function activarNavegacionEnter() {
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        let activo = document.activeElement;
+        if (activo && (activo.classList.contains('campo-enter') || activo.classList.contains('corte-desposte-input') || activo.classList.contains('traste-despiece-input') || activo.classList.contains('valery-corte-qty') || activo.classList.contains('viveres-cierre-qty') || activo.classList.contains('precio-mostrador-input'))) {
+          e.preventDefault();
+          let campos = Array.from(document.querySelectorAll('.modulo-content.active .campo-enter, .modulo-content.active .corte-desposte-input, .modulo-content.active .traste-despiece-input, .modulo-content.active .valery-corte-qty, .modulo-content.active .viveres-cierre-qty, .modulo-content.active .precio-mostrador-input'));
+          let index = campos.indexOf(activo);
+          if (index > -1 && index + 1 < campos.length) {
+            campos[index + 1].focus();
+            if(campos[index + 1].select) campos[index + 1].select();
+          }
+        }
+      }
+    });
+  }
+
+  // ==========================================
+  // GASTOS DEL NEGOCIO
+  // ==========================================
+  function registrarGastoNegocio(e) {
+    e.preventDefault();
+    let fecha = document.getElementById('gastoFecha').value;
+    let categoria = document.getElementById('gastoCategoria').value;
+    let concepto = document.getElementById('gastoConcepto').value.trim().toUpperCase();
+    let montoUsd = parseM(document.getElementById('gastoMontoUsd').value);
+
+    if (montoUsd <= 0) {
+      showAlert('alertGasto', '⚠️ Ingrese un monto de gasto válido.', 'error');
+      return;
+    }
+
+    let idUnico = 'GASTO_' + Date.now();
+    DB_GANADO.gastosNegocio.push({
+      idUnico, fecha, categoria, concepto, montoUsd
+    });
+
+    guardarDatosFirebase();
+    renderHistorialGastos();
+    renderReportesGenerales();
+
+    document.getElementById('formGasto').reset();
+    ponerFechaHoy('gastoFecha');
+    showAlert('alertGasto', `✨ Gasto de "${concepto}" registrado con éxito.`, 'success');
+  }
+
+  function renderHistorialGastos() {
+    const tbody = document.getElementById('tablaHistorialGastos');
+    if (!tbody) return;
+    if (!DB_GANADO.gastosNegocio || DB_GANADO.gastosNegocio.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">Sin gastos registrados.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = '';
+    DB_GANADO.gastosNegocio.forEach(g => {
+      let montoBs = g.montoUsd * DB_GANADO.tasaBcv;
+      tbody.innerHTML += `<tr>
+        <td><strong>${g.fecha}</strong></td>
+        <td><span style="background:#f8d7da; color:#721c24; padding:2px 6px; border-radius:4px; font-weight:bold; font-size:0.75rem;">${g.categoria}</span></td>
+        <td>${g.concepto}</td>
+        <td>$${fmtBs(g.montoUsd)}</td>
+        <td><strong>Bs. ${fmtBs(montoBs)}</strong></td>
+        <td><button class="btn-danger" onclick="eliminarGasto('${g.idUnico}')" style="padding:2px 6px; font-size:0.7rem;">🗑️ Eliminar</button></td>
+      </tr>`;
+    });
+  }
+
+  function eliminarGasto(idUnico) {
+    if(!confirm("⚠️ ¿Desea eliminar este registro de gasto?")) return;
+    DB_GANADO.gastosNegocio = DB_GANADO.gastosNegocio.filter(g => g.idUnico !== idUnico);
+    guardarDatosFirebase();
+    renderHistorialGastos();
+    renderReportesGenerales();
+  }
+
+  // ==========================================
+  // RESPALDO Y RESTAURACIÓN (BACKUP & RESTORE)
+  // ==========================================
+  function exportarBaseDeDatosJSON() {
+    let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(DB_GANADO, null, 2));
+    let downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `porkys_respaldo_${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  }
+
+  function importarBaseDeDatosJSON(event) {
+    let file = event.target.files[0];
+    if (!file) return;
+
+    let reader = new FileReader();
+    reader.onload = async function(e) {
+      try {
+        let jsonRespaldo = JSON.parse(e.target.result);
+        if (!jsonRespaldo.cortesRes || !jsonRespaldo.lotes) {
+          alert("❌ El archivo seleccionado no tiene el formato válido de respaldo de Porkys C.A.");
+          return;
+        }
+
+        if (!confirm("⚠️ ¿Está seguro de restaurar este respaldo? Se sobrescribirán todos los datos actuales del sistema.")) return;
+
+        DB_GANADO = jsonRespaldo;
+        if(!DB_GANADO.gastosNegocio) DB_GANADO.gastosNegocio = [];
+        await guardarDatosFirebase();
+        actualizarPantallaCompleta();
+
+        alert("✨ ¡Base de datos restaurada con éxito!");
+      } catch (err) {
+        alert("❌ Error al leer el archivo JSON: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function pedirConfirmacionTasa(mensaje, modalidad, callback) {
+    accionPendienteConTasa = callback;
+    let bcv = fmtBs(DB_GANADO.tasaBcv);
+    let paral = fmtBs(DB_GANADO.tasaParalelo);
+    let textoHtml = "";
+
+    if (modalidad && modalidad.includes('CONTADO_BCV')) {
+      textoHtml = `¿Desea registrar esta factura a esta tasa BCV?\n\n📌 Tasa BCV Oficial: Bs. ${bcv}`;
+    } else if (modalidad && modalidad.includes('CONTADO_PARALELO')) {
+      textoHtml = `¿Desea registrar esta factura a esta tasa Paralela?\n\n📌 Tasa Paralela Mercado: Bs. ${paral}`;
+    } else {
+      textoHtml = `${mensaje}\n\n📌 Tasa BCV: Bs. ${bcv}\n📌 Tasa Paralela: Bs. ${paral}`;
+    }
+
+    document.getElementById('txtMensajeTasaFlotante').innerText = textoHtml;
+    document.getElementById('modalConfirmarTasa').style.display = 'flex';
+  }
+
+  function cerrarModalTasa() {
+    document.getElementById('modalConfirmarTasa').style.display = 'none';
+    accionPendienteConTasa = null;
+  }
+
+  function ejecutarAccionConTasaConfirmada() {
+    let cb = accionPendienteConTasa;
+    cerrarModalTasa();
+    if(cb) cb();
+  }
+
+  function fmtBs(m) { return (m || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function parseM(v) { if(!v) return 0; return parseFloat(v.toString().replace(/\./g, '').replace(',', '.')) || 0; }
+  
+  function formatearMonedaInput(input) {
+    let raw = input.value.replace(/[^0-9]/g, '');
+    if (!raw) { input.value = ''; actualizarSistema(); return; }
+    input.value = parseInt(raw, 10).toLocaleString('es-VE');
+    actualizarSistema();
+  }
+
+  function formatearInputMiles(input) {
+    let raw = input.value.replace(/[^0-9]/g, '');
+    if (!raw) { input.value = ''; return; }
+    input.value = parseInt(raw, 10).toLocaleString('es-VE');
+  }
+
+  function validarMascara(input) {
+    let val = input.value.replace('.', ',');
+    val = val.replace(/[^0-9,]/g, '');
+    let parts = val.split(',');
+    if (parts.length > 2) val = parts[0] + ',' + parts.slice(1).join('');
+    if (input.value !== val) {
+      input.value = val;
+    }
+  }
+
+  function showAlert(id, msg, type) {
+    const b = document.getElementById(id);
+    if(!b) return;
+    b.textContent = msg; b.className = 'alert-box ' + type;
+    setTimeout(() => { b.className = 'alert-box'; b.textContent = ''; }, 4000);
+  }
+
+  function ponerFechaHoy(id) { const el = document.getElementById(id); if(el) el.value = new Date().toISOString().split('T')[0]; }
+
+  async function consultarTasaBcv(forzarAlerta = false) {
+    const lbl = document.getElementById('estadoTasaBcv').querySelector('span');
+    if (forzarAlerta) lbl.textContent = "🌐 Consultando tasa BCV...";
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
+
+    try {
+      const res = await fetch('https://pydolarvenezuela-api.vercel.app/api/v1/dollar/type/bcv/monitors/meta?t=' + new Date().getTime(), { signal: controller.signal });
+      clearTimeout(timeoutId);
+      const d = await res.json();
+      if(d && d.price) {
+        let tasaOnline = parseFloat(d.price);
+        DB_GANADO.tasaBcv = tasaOnline;
+        document.getElementById('tasaBcvGlobal').value = fmtBs(tasaOnline);
+        lbl.textContent = `✅ Tasa BCV Oficial obtenida: Bs. ${fmtBs(tasaOnline)}`;
+        actualizarSistema();
+        return;
+      }
+    } catch(e) {
+      console.log("API no disponible, usando tasa manual.");
+    }
+
+    let tasaActualGuardada = parseM(document.getElementById('tasaBcvGlobal').value);
+    if (tasaActualGuardada > 0) {
+      DB_GANADO.tasaBcv = tasaActualGuardada;
+      if(forzarAlerta) lbl.textContent = `💾 Tasa BCV establecida en: Bs. ${fmtBs(tasaActualGuardada)}`;
+    }
+  }
+
+  function actualizarSistema(debeGuardar = true) {
+    let inputParalelo = document.getElementById('tasaParaleloGlobal');
+    let inputBcv = document.getElementById('tasaBcvGlobal');
+
+    if (document.activeElement !== inputBcv) {
+      DB_GANADO.tasaBcv = parseM(inputBcv.value);
+    }
+    if (document.activeElement !== inputParalelo) {
+      DB_GANADO.tasaParalelo = parseM(inputParalelo.value);
+    }
+
+    renderTablaPrecios();
+    renderCava();
+    calcularArqueoGanado();
+    calcularPreviewMargen();
+    calcularPreviewLote();
+    calcularPreviewPolloCochino();
+    renderHistorialGeneral();
+    renderReportesGenerales();
+    renderHistorialGastos();
+    verificarVencimientosCxP();
+    if(debeGuardar) guardarDatosFirebase();
+  }
+
+  function verModulo(id, btn) {
+    document.querySelectorAll('.modulo-content').forEach(m => m.classList.remove('active'));
+    document.querySelectorAll('.btn-modulo').forEach(b => b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    btn.classList.add('active');
+    
+    if(id === 'm-precios') renderTablaPrecios();
+    if(id === 'm-cava') renderCava();
+    if(id === 'm-valery') renderFormularioValery();
+    if(id === 'm-gastos') renderHistorialGastos();
+    if(id === 'm-reportes') {
+      renderReportesGenerales();
+      ponerFechaHoy('repGananciaDesde');
+      ponerFechaHoy('repGananciaHasta');
+      calcularReporteGanancias();
+    }
+    if(id === 'm-desposte') {
+      poblarSelectoresDesposte();
+    }
+  }
+
+  function poblarSelectorCategoriasMargen() {
+    let sel = document.getElementById('mgCategoriaSelect');
+    if (!sel) return;
+    sel.innerHTML = '';
+    if (DB_GANADO.categoriasPersonalizadas && DB_GANADO.categoriasPersonalizadas.length > 0) {
+      DB_GANADO.categoriasPersonalizadas.forEach(cat => {
+        sel.innerHTML += `<option value="${cat}">${cat}</option>`;
+      });
+    } else {
+      sel.innerHTML += `<option value="">-- No hay categorías (Cree una abajo) --</option>`;
+    }
+    sel.innerHTML += `<option value="NUEVA_CATEGORIA" style="font-weight:bold; color:var(--primary);">➕ [ Crear Nueva Categoría... ]</option>`;
+    evaluarNuevaCategoriaOption();
+  }
+
+  function evaluarNuevaCategoriaOption() {
+    let sel = document.getElementById('mgCategoriaSelect');
+    let grupo = document.getElementById('grupoNuevaCategoriaInput');
+    if(sel && grupo) {
+      if(sel.value === 'NUEVA_CATEGORIA') {
+        grupo.style.display = 'block';
+        document.getElementById('mgNuevaCategoriaInput').focus();
+      } else {
+        grupo.style.display = 'none';
+      }
+    }
+  }
+
+  function sincronizarMontoMargenBs() {
+    let usd = parseM(document.getElementById('mgMontoUsd').value);
+    if(usd > 0) {
+      document.getElementById('mgMontoBs').value = fmtBs(usd * DB_GANADO.tasaBcv);
+    }
+  }
+
+  function sincronizarMontoMargenUsd() {
+    let bs = parseM(document.getElementById('mgMontoBs').value);
+    if(bs > 0 && DB_GANADO.tasaBcv > 0) {
+      document.getElementById('mgMontoUsd').value = fmtBs(bs / DB_GANADO.tasaBcv);
+    }
+  }
+
+  function toggleMargenCredito() {
+    let mod = document.getElementById('mgModalidad').value;
+    document.getElementById('mgGrupoDias').style.display = mod.includes('CONTADO') ? 'none' : 'block';
+  }
+
+  function calcularPreviewMargen() {
+    let montoUsd = parseM(document.getElementById('mgMontoUsd').value);
+    let porc = parseM(document.getElementById('mgPorcentaje').value);
+    let box = document.getElementById('resumenMargenBox');
+    if(montoUsd <= 0) { if(box) box.style.display = 'none'; return; }
+
+    let gananciaUsd = montoUsd * (porc / 100);
+    let ventaProyectadaUsd = montoUsd + gananciaUsd;
+    let montoBs = montoUsd * DB_GANADO.tasaBcv;
+    let gananciaBs = gananciaUsd * DB_GANADO.tasaBcv;
+    let ventaProyectadaBs = ventaProyectadaUsd * DB_GANADO.tasaBcv;
+
+    document.getElementById('mgTxtVentaProyectada').innerText = `$${fmtBs(ventaProyectadaUsd)} | Bs. ${fmtBs(ventaProyectadaBs)}`;
+    document.getElementById('mgTxtInversion').innerText = `$${fmtBs(montoUsd)} (Bs. ${fmtBs(montoBs)})`;
+    document.getElementById('mgTxtGanancia').innerText = `$${fmtBs(gananciaUsd)} (Bs. ${fmtBs(gananciaBs)}) - ${porc}%`;
+
+    let mod = document.getElementById('mgModalidad').value;
+    let dias = parseM(document.getElementById('mgDias').value);
+    let fecha = document.getElementById('mgFecha').value;
+
+    if(!mod.includes('CONTADO') && fecha) {
+      let d = new Date(fecha);
+      d.setDate(d.getDate() + dias);
+      document.getElementById('mgTxtVence').innerText = d.toLocaleDateString('es-VE') + ` (${dias} días)`;
+      document.getElementById('mgLineaVence').style.display = 'flex';
+    } else {
+      document.getElementById('mgLineaVence').style.display = 'none';
+    }
+    if(box) box.style.display = 'block';
+  }
+
+  function prepararFacturaMargen(e) {
+    e.preventDefault();
+    let montoUsd = parseM(document.getElementById('mgMontoUsd').value);
+    if (montoUsd <= 0) {
+      showAlert('alertMargen', '⚠️ Ingrese un monto de factura válido mayor a cero.', 'error');
+      return;
+    }
+
+    let selVal = document.getElementById('mgCategoriaSelect').value;
+    let catFinal = "";
+    if (selVal === 'NUEVA_CATEGORIA') {
+      catFinal = document.getElementById('mgNuevaCategoriaInput').value.trim().toUpperCase();
+      if(!catFinal) {
+        showAlert('alertMargen', '⚠️ Ingrese el nombre de la nueva categoría.', 'error');
+        return;
+      }
+    } else {
+      catFinal = selVal;
+    }
+
+    if (!catFinal) {
+      showAlert('alertMargen', '⚠️ Seleccione o cree una categoría.', 'error');
+      return;
+    }
+
+    let mod = document.getElementById('mgModalidad').value;
+    pedirConfirmacionTasa("¿Desea registrar esta factura con la tasa correspondiente?", mod, () => registrarFacturaMargenGlobalReal(catFinal));
+  }
+
+  function registrarFacturaMargenGlobalReal(categoriaFinal) {
+    let proveedor = document.getElementById('mgProveedor').value.trim().toUpperCase();
+    let nro = document.getElementById('mgNroFact').value.trim().toUpperCase();
+    let fecha = document.getElementById('mgFecha').value;
+    let montoUsd = parseM(document.getElementById('mgMontoUsd').value);
+    let porc = parseM(document.getElementById('mgPorcentaje').value);
+    let mod = document.getElementById('mgModalidad').value;
+    let dias = parseM(document.getElementById('mgDias').value);
+
+    if (!DB_GANADO.categoriasPersonalizadas.includes(categoriaFinal)) {
+      DB_GANADO.categoriasPersonalizadas.push(categoriaFinal);
+    }
+
+    let gananciaUsd = montoUsd * (porc / 100);
+    let ventaProyectada = montoUsd + gananciaUsd;
+
+    let esCredito = !mod.includes('CONTADO');
+    let fechaVenceStr = 'DE CONTADO';
+
+    if(esCredito) {
+      let fVence = new Date(fecha);
+      fVence.setDate(fVence.getDate() + dias);
+      fechaVenceStr = fVence.toISOString().split('T')[0];
+    }
+    
+    let editandoId = document.getElementById('editandoMgId').value;
+    let idUnico = editandoId ? editandoId : 'MG_' + Date.now();
+
+    if (editandoId) {
+      DB_GANADO.facturasMargen = DB_GANADO.facturasMargen.filter(f => f.idUnico !== editandoId);
+      DB_GANADO.historial = DB_GANADO.historial.filter(h => h.idUnico !== editandoId);
+    }
+
+    DB_GANADO.facturasMargen.push({
+      idUnico, fecha, vence: fechaVenceStr, proveedor, ref: `Doc. ${nro} (${categoriaFinal})`,
+      categoria: categoriaFinal, montoUsd, saldoPendienteUsd: esCredito ? montoUsd : 0, porcentaje: porc, ventaProyectada, gananciaUsd, modalidad: mod
+    });
+
+    DB_GANADO.historial.push({
+      idUnico, fecha, vence: fechaVenceStr, ref: `Doc. ${nro} (${categoriaFinal} - ${porc}%)`,
+      proveedor, totalUsd: montoUsd, saldoPendienteUsd: esCredito ? montoUsd : 0, modalidad: mod,
+      estatus: esCredito ? 'PENDIENTE' : 'CONTADO'
+    });
+
+    document.getElementById('formFacturaMargen').reset();
+    document.getElementById('editandoMgId').value = '';
+    document.getElementById('btnCancelarEdicionMg').style.display = 'none';
+    document.getElementById('btnRegMargen').innerText = '📥 Registrar Nota/Factura y Cuentas por Pagar (CxP)';
+    document.getElementById('resumenMargenBox').style.display = 'none';
+    document.getElementById('mgNuevaCategoriaInput').value = '';
+    ponerFechaHoy('mgFecha');
+
+    guardarDatosFirebase();
+    showAlert('alertMargen', `✨ Factura/Nota "${nro}" guardada con éxito en ${categoriaFinal}!`, 'success');
+  }
+
+  function cancelarEdicionMg() {
+    document.getElementById('formFacturaMargen').reset();
+    document.getElementById('editandoMgId').value = '';
+    document.getElementById('btnCancelarEdicionMg').style.display = 'none';
+    document.getElementById('btnRegMargen').innerText = '📥 Registrar Nota/Factura y Cuentas por Pagar (CxP)';
+    document.getElementById('resumenMargenBox').style.display = 'none';
+    document.getElementById('mgNuevaCategoriaInput').value = '';
+    ponerFechaHoy('mgFecha');
+    poblarSelectorCategoriasMargen();
+  }
+
+  function toggleFormularioLote() {
+    const chk = document.getElementById('checkVerificoTasas');
+    const inputs = document.querySelectorAll('.input-bloqueado-tasa');
+    const btnGuardar = document.getElementById('btnGuardarLote');
+    
+    if (chk && chk.checked) {
+      inputs.forEach(i => i.removeAttribute('disabled'));
+      if(btnGuardar) {
+        btnGuardar.removeAttribute('disabled');
+        btnGuardar.style.opacity = '1';
+        btnGuardar.style.cursor = 'pointer';
+      }
+    } else {
+      inputs.forEach(i => i.setAttribute('disabled', 'true'));
+      if(btnGuardar) {
+        btnGuardar.setAttribute('disabled', 'true');
+        btnGuardar.style.opacity = '0.6';
+        btnGuardar.style.cursor = 'not-allowed';
+      }
+    }
+  }
+
+  function toggleDiasCredito() {
+    let mod = document.getElementById('modalidadPagoLote').value;
+    document.getElementById('grupoDiasCredito').style.display = mod.includes('CONTADO') ? 'none' : 'block';
+  }
+
+  function toggleTrasteInput() {
+    let trajo = document.getElementById('trajoTraste').checked;
+    document.getElementById('grupoInputsTrasteDetallado').style.display = trajo ? 'flex' : 'none';
+  }
+
+  function calcularPreviewLote() {
+    let kg = parseM(document.getElementById('kgBrutos').value);
+    let precio = parseM(document.getElementById('precioCanal').value);
+    let trajo = document.getElementById('trajoTraste').checked;
+    let cantT = trajo ? parseM(document.getElementById('cantTrasteDetalle').value) : 0;
+    let precioT = trajo ? parseM(document.getElementById('precioTrasteDetalle').value) : 0;
+
+    let totalCanal = kg * precio;
+    let totalTraste = cantT * precioT;
+    let totalLote = totalCanal + totalTraste;
+
+    document.getElementById('txtLoteUsd').innerText = `$${fmtBs(totalLote)}`;
+    document.getElementById('txtDesgloseCanal').innerText = `$${fmtBs(totalCanal)}`;
+    document.getElementById('txtDesgloseTraste').innerText = `$${fmtBs(totalTraste)}`;
+
+    let mod = document.getElementById('modalidadPagoLote').value;
+    let desgloseHtml = '';
+
+    if (mod.includes('MIXTO')) {
+      let usd50Bcv = totalLote / 2;
+      let usd50Paralelo = totalLote / 2;
+      let bsBcv = usd50Bcv * DB_GANADO.tasaBcv;
+      let bsParalelo = usd50Paralelo * DB_GANADO.tasaParalelo;
+      let totalBsBimonetario = bsBcv + bsParalelo;
+
+      desgloseHtml = `
+        <div class="desglose-linea" style="color:#0d47a1; font-weight:bold;"><span>50% Tasa BCV ($${fmtBs(usd50Bcv)}):</span><span>Bs. ${fmtBs(bsBcv)}</span></div>
+        <div class="desglose-linea" style="color:#0d47a1; font-weight:bold;"><span>50% Tasa Paralelo ($${fmtBs(usd50Paralelo)}):</span><span>Bs. ${fmtBs(bsParalelo)}</span></div>
+        <div class="desglose-linea" style="font-size:0.9rem; font-weight:bold; color:var(--primary); margin-top:4px;"><span>Total Equivalente en Bolívares:</span><span>Bs. ${fmtBs(totalBsBimonetario)}</span></div>
+      `;
+    } else if (mod.includes('BCV')) {
+      let totalBs = totalLote * DB_GANADO.tasaBcv;
+      desgloseHtml = `<div class="desglose-linea" style="font-weight:bold; color:var(--primary);"><span>Total a Pagar (100% BCV):</span><span>Bs. ${fmtBs(totalBs)}</span></div>`;
+    } else {
+      let totalBs = totalLote * DB_GANADO.tasaParalelo;
+      desgloseHtml = `<div class="desglose-linea" style="font-weight:bold; color:var(--primary);"><span>Total a Pagar (100% Paralelo):</span><span>Bs. ${fmtBs(totalBs)}</span></div>`;
+    }
+
+    document.getElementById('desgloseCalculoPagos').innerHTML = desgloseHtml;
+
+    let dias = parseM(document.getElementById('diasCredito').value);
+    let fecha = document.getElementById('fechaLote').value;
+
+    if (!mod.includes('CONTADO') && fecha) {
+      let d = new Date(fecha);
+      d.setDate(d.getDate() + dias);
+      document.getElementById('txtFechaVence').innerText = d.toLocaleDateString('es-VE') + ` (${dias} días)`;
+      document.getElementById('lineaFechaVence').style.display = 'flex';
+    } else {
+      document.getElementById('lineaFechaVence').style.display = 'none';
+    }
+    document.getElementById('resumenLoteBox').style.display = 'block';
+  }
+
+  function prepararLoteGanado(e) {
+    e.preventDefault();
+    let kg = parseM(document.getElementById('kgBrutos').value);
+    let precio = parseM(document.getElementById('precioCanal').value);
+    if (kg <= 0 || precio <= 0) {
+      showAlert('alertEntrada', '⚠️ El peso bruto y el costo por kilo deben ser mayores a cero.', 'error');
+      return;
+    }
+    let mod = document.getElementById('modalidadPagoLote').value;
+    pedirConfirmacionTasa("¿Confirmar registro del Lote de Ganado con las Tasas del Día?", mod, guardarLoteGanadoReal);
+  }
+
+  function guardarLoteGanadoReal() {
+    let docTipo = document.getElementById('docTipo').value;
+    let docNro = document.getElementById('docNro').value.trim().toUpperCase();
+    let loteId = document.getElementById('loteId').value.trim().toUpperCase();
+    let proveedor = document.getElementById('proveedor').value.trim().toUpperCase();
+    let sexo = document.getElementById('sexoGanado').value;
+    let fecha = document.getElementById('fechaLote').value;
+    let mod = document.getElementById('modalidadPagoLote').value;
+    let dias = parseM(document.getElementById('diasCredito').value);
+    let kgBrutos = parseM(document.getElementById('kgBrutos').value);
+    let precioCanal = parseM(document.getElementById('precioCanal').value);
+    let trajoTraste = document.getElementById('trajoTraste').checked;
+    let cantTraste = trajoTraste ? parseM(document.getElementById('cantTrasteDetalle').value) : 0;
+    let precioTraste = trajoTraste ? parseM(document.getElementById('precioTrasteDetalle').value) : 0;
+
+    let totalCanal = kgBrutos * precioCanal;
+    let totalTraste = cantTraste * precioTraste;
+    let montoTotalUsd = totalCanal + totalTraste;
+
+    let esCredito = !mod.includes('CONTADO');
+    let fechaVenceStr = 'DE CONTADO';
+
+    if(esCredito) {
+      let fVence = new Date(fecha);
+      fVence.setDate(fVence.getDate() + dias);
+      fechaVenceStr = fVence.toISOString().split('T')[0];
+    }
+
+    let editandoId = document.getElementById('editandoLoteId').value;
+    if (editandoId) {
+      DB_GANADO.lotes = DB_GANADO.lotes.filter(l => l.loteId !== editandoId);
+      DB_GANADO.historial = DB_GANADO.historial.filter(h => h.idUnico !== editandoId);
+    }
+
+    DB_GANADO.lotes.push({
+      loteId, docTipo, docNro, proveedor, sexo, fecha, modalidad: mod, diasCredito: dias,
+      kgBrutos, precioCanal, trajoTraste, cantTraste, precioTraste, montoTotalUsd, despostado: false
+    });
+
+    DB_GANADO.historial.push({
+      idUnico: loteId, fecha, vence: fechaVenceStr, ref: `Lote ${loteId} (${sexo} - ${kgBrutos} KG)`,
+      proveedor, totalUsd: montoTotalUsd, saldoPendienteUsd: esCredito ? montoTotalUsd : 0, modalidad: mod,
+      estatus: esCredito ? 'PENDIENTE' : 'CONTADO'
+    });
+
+    document.getElementById('formEntradaUnificada').reset();
+    document.getElementById('editandoLoteId').value = '';
+    document.getElementById('btnCancelarEdicionLote').style.display = 'none';
+    document.getElementById('btnGuardarLote').innerText = 'Registrar Lote de Ganado y CxP';
+    document.getElementById('resumenLoteBox').style.display = 'none';
+    document.getElementById('checkVerificoTasas').checked = false;
+    toggleFormularioLote();
+    ponerFechaHoy('fechaLote');
+
+    guardarDatosFirebase();
+    showAlert('alertEntrada', `✨ Lote "${loteId}" guardado correctamente.`, 'success');
+  }
+
+  function cancelarEdicionLote() {
+    document.getElementById('formEntradaUnificada').reset();
+    document.getElementById('editandoLoteId').value = '';
+    document.getElementById('btnCancelarEdicionLote').style.display = 'none';
+    document.getElementById('btnGuardarLote').innerText = 'Registrar Lote de Ganado y CxP';
+    document.getElementById('resumenLoteBox').style.display = 'none';
+    document.getElementById('checkVerificoTasas').checked = false;
+    toggleFormularioLote();
+  }
+
+  function toggleDiasCreditoPollo() {
+    let mod = document.getElementById('modPolloCochino').value;
+    document.getElementById('grupoDiasCreditoPollo').style.display = mod.includes('CONTADO') ? 'none' : 'block';
+  }
+
+  function calcularPreviewPolloCochino() {
+    let kg = parseM(document.getElementById('kgPolloCochino').value);
+    let costo = parseM(document.getElementById('costoKgPolloCochino').value);
+    let totalUsd = kg * costo;
+
+    document.getElementById('txtPolloUsd').innerText = `$${fmtBs(totalUsd)}`;
+    let mod = document.getElementById('modPolloCochino').value;
+
+    let desgloseHtml = '';
+    if (mod.includes('MIXTO')) {
+      let usd50Bcv = totalUsd / 2;
+      let usd50Paralelo = totalUsd / 2;
+      let bsBcv = usd50Bcv * DB_GANADO.tasaBcv;
+      let bsParalelo = usd50Paralelo * DB_GANADO.tasaParalelo;
+      let totalBsBimonetario = bsBcv + bsParalelo;
+
+      desgloseHtml = `
+        <div class="desglose-linea" style="color:#0d47a1; font-weight:bold;"><span>50% Tasa BCV ($${fmtBs(usd50Bcv)}):</span><span>Bs. ${fmtBs(bsBcv)}</span></div>
+        <div class="desglose-linea" style="color:#0d47a1; font-weight:bold;"><span>50% Tasa Paralelo ($${fmtBs(usd50Paralelo)}):</span><span>Bs. ${fmtBs(bsParalelo)}</span></div>
+        <div class="desglose-linea" style="font-size:0.9rem; font-weight:bold; color:var(--primary); margin-top:4px;"><span>Total Equivalente en Bolívares:</span><span>Bs. ${fmtBs(totalBsBimonetario)}</span></div>
+      `;
+    } else if (mod.includes('BCV')) {
+      let totalBs = totalUsd * DB_GANADO.tasaBcv;
+      desgloseHtml = `<div class="desglose-linea" style="font-weight:bold; color:var(--primary);"><span>Total a Pagar (100% BCV):</span><span>Bs. ${fmtBs(totalBs)}</span></div>`;
+    } else {
+      let totalBs = totalUsd * DB_GANADO.tasaParalelo;
+      desgloseHtml = `<div class="desglose-linea" style="font-weight:bold; color:var(--primary);"><span>Total a Pagar (100% Paralelo):</span><span>Bs. ${fmtBs(totalBs)}</span></div>`;
+    }
+
+    document.getElementById('desgloseCalculoPollo').innerHTML = desgloseHtml;
+
+    let dias = parseM(document.getElementById('diasPolloCochino').value);
+    let fecha = document.getElementById('fechaPolloCochino').value;
+
+    if (!mod.includes('CONTADO') && fecha) {
+      let d = new Date(fecha);
+      d.setDate(d.getDate() + dias);
+      document.getElementById('txtFechaVencePollo').innerText = d.toLocaleDateString('es-VE') + ` (${dias} días)`;
+      document.getElementById('lineaFechaVencePollo').style.display = 'flex';
+    } else {
+      document.getElementById('lineaFechaVencePollo').style.display = 'none';
+    }
+    document.getElementById('resumenPolloBox').style.display = 'block';
+  }
+
+  function prepararPolloCochino(e) {
+    e.preventDefault();
+    let kg = parseM(document.getElementById('kgPolloCochino').value);
+    let costo = parseM(document.getElementById('costoKgPolloCochino').value);
+    if (kg <= 0 || costo <= 0) {
+      showAlert('alertPolloCochino', '⚠️ La cantidad y el costo por kilo deben ser mayores a cero.', 'error');
+      return;
+    }
+    let mod = document.getElementById('modPolloCochino').value;
+    pedirConfirmacionTasa("¿Registrar esta compra de proteína con las Tasas del Día?", mod, registrarPolloCochinoReal);
+  }
+
+  function registrarPolloCochinoReal() {
+    let proveedor = document.getElementById('provPolloCochino').value.trim().toUpperCase();
+    let nro = document.getElementById('nroFactPolloCochino').value.trim().toUpperCase();
+    let fecha = document.getElementById('fechaPolloCochino').value;
+    let item = document.getElementById('itemPolloCochino').value;
+    let cantidad = parseM(document.getElementById('kgPolloCochino').value);
+    let costoUnitario = parseM(document.getElementById('costoKgPolloCochino').value);
+    let mod = document.getElementById('modPolloCochino').value;
+    let dias = parseM(document.getElementById('diasPolloCochino').value);
+
+    let montoUsd = cantidad * costoUnitario;
+    let esCredito = !mod.includes('CONTADO');
+    let fechaVenceStr = 'DE CONTADO';
+
+    if(esCredito) {
+      let fVence = new Date(fecha);
+      fVence.setDate(fVence.getDate() + dias);
+      fechaVenceStr = fVence.toISOString().split('T')[0];
+    }
+    
+    let editandoId = document.getElementById('editandoProtId').value;
+    let idUnico = editandoId ? editandoId : 'PROT_' + Date.now();
+
+    if (editandoId) {
+      let viejo = DB_GANADO.recepcionesProteinas.find(p => p.idUnico === editandoId);
+      if(viejo && DB_GANADO.cortesRes[viejo.item]) {
+        DB_GANADO.cortesRes[viejo.item].stock = Math.max(0, DB_GANADO.cortesRes[viejo.item].stock - viejo.cantidad);
+      }
+      DB_GANADO.recepcionesProteinas = DB_GANADO.recepcionesProteinas.filter(p => p.idUnico !== editandoId);
+      DB_GANADO.historial = DB_GANADO.historial.filter(h => h.idUnico !== editandoId);
+    }
+
+    if (DB_GANADO.cortesRes[item]) {
+      DB_GANADO.cortesRes[item].stock += cantidad;
+      DB_GANADO.cortesRes[item].costo = costoUnitario;
+    }
+
+    DB_GANADO.recepcionesProteinas.push({
+      idUnico, fecha, proveedor, nro, item, cantidad, costoUnitario, montoUsd, modalidad: mod
+    });
+
+    DB_GANADO.historial.push({
+      idUnico, fecha, vence: fechaVenceStr, ref: `Nota ${nro} (${item} - ${cantidad} KG)`,
+      proveedor, totalUsd: montoUsd, saldoPendienteUsd: esCredito ? montoUsd : 0, modalidad: mod,
+      estatus: esCredito ? 'PENDIENTE' : 'CONTADO', tipoModulo: 'PROTEINA', itemAsociado: item, cantidadIngresada: cantidad
+    });
+
+    document.getElementById('formEntradaPolloCochino').reset();
+    document.getElementById('editandoProtId').value = '';
+    document.getElementById('btnCancelarEdicionProt').style.display = 'none';
+    document.getElementById('btnRegPollo').innerText = 'Registrar Compra y Sumar a Cava';
+    document.getElementById('resumenPolloBox').style.display = 'none';
+    ponerFechaHoy('fechaPolloCochino');
+
+    guardarDatosFirebase();
+    showAlert('alertPolloCochino', `✨ ¡Compra de "${item}" guardada con éxito!`, 'success');
+  }
+
+  function cancelarEdicionProt() {
+    document.getElementById('formEntradaPolloCochino').reset();
+    document.getElementById('editandoProtId').value = '';
+    document.getElementById('btnCancelarEdicionProt').style.display = 'none';
+    document.getElementById('btnRegPollo').innerText = 'Registrar Compra y Sumar a Cava';
+    document.getElementById('resumenPolloBox').style.display = 'none';
+    ponerFechaHoy('fechaPolloCochino');
+  }
+
+  function renderHistorialGeneral() {
+    const tbody = document.getElementById('tablaHistorialGeneral');
+    if(!tbody) return;
+    if(!DB_GANADO.historial || DB_GANADO.historial.length === 0) { 
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Sin cuentas registradas.</td></tr>`; 
+      return; 
+    }
+    tbody.innerHTML = '';
+    DB_GANADO.historial.forEach(h => {
+      let saldoUsd = h.saldoPendienteUsd !== undefined ? h.saldoPendienteUsd : h.totalUsd;
+      let estatus = h.estatus || 'PENDIENTE';
+      let totalBsActual = h.modalidad && h.modalidad.includes('CONTADO_BCV') ? saldoUsd * DB_GANADO.tasaBcv :
+                          h.modalidad && h.modalidad.includes('CONTADO_PARALELO') ? saldoUsd * DB_GANADO.tasaParalelo :
+                          ((saldoUsd / 2) * DB_GANADO.tasaBcv) + ((saldoUsd / 2) * DB_GANADO.tasaParalelo);
+
+      let badgeEstatus = estatus === 'ANULADA' ? '<span style="background:#f8d7da; color:#721c24; text-decoration:line-through; padding:2px 6px; border-radius:4px; font-weight:bold;">ANULADA</span>' :
+                         estatus === 'PAGADA' ? '<span style="background:#d4edda; color:#155724; padding:2px 6px; border-radius:4px; font-weight:bold;">PAGADA</span>' :
+                         estatus === 'CONTADO' ? '<span style="background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:4px; font-weight:bold;">CONTADO (CANCELADA)</span>' :
+                         '<span style="background:#fff3cd; color:#856404; padding:2px 6px; border-radius:4px; font-weight:bold;">PENDIENTE (CRÉDITO)</span>';
+
+      let estiloFila = estatus === 'ANULADA' ? 'style="background-color: #fdf2f2; color: #999;"' : '';
+
+      let botonesAccion = estatus === 'ANULADA' ? '<span style="color:#c62828; font-weight:bold;">Documento Anulado</span>' : 
+                         (estatus === 'PENDIENTE' ? `<button class="btn-success" onclick="abrirPanelAbonoInline('${h.idUnico}')" style="padding:4px 8px; font-size:0.75rem;">💳 Abonar</button>` : '');
+      
+      if(estatus !== 'ANULADA') {
+        botonesAccion += ` <button class="btn-warning" onclick="cargarEdicionHistorial('${h.idUnico}')" style="padding:4px 8px; font-size:0.75rem;">✏️ Editar</button>`;
+        botonesAccion += ` <button class="btn-danger" onclick="anularItemHistorial('${h.idUnico}')" style="padding:4px 8px; font-size:0.75rem;">🗑️ Anular</button>`;
+      }
+
+      tbody.innerHTML += `<tr ${estiloFila}>
+        <td><strong>${h.vence}</strong></td>
+        <td><strong>${h.ref}</strong></td>
+        <td>${h.proveedor}</td>
+        <td>$${fmtBs(saldoUsd)}</td>
+        <td><strong style="color:${estatus === 'ANULADA' ? '#999' : 'var(--primary)'};">Bs. ${fmtBs(totalBsActual)}</strong></td>
+        <td>${badgeEstatus}</td>
+        <td>${botonesAccion}</td>
+      </tr>`;
+    });
+  }
+
+  function cargarEdicionHistorial(idUnico) {
+    let lote = DB_GANADO.lotes.find(l => l.loteId === idUnico);
+    if (lote) {
+      if (lote.despostado) { alert("⚠️ Este lote ya fue despostado. No se puede editar."); return; }
+      document.getElementById('editandoLoteId').value = lote.loteId;
+      document.getElementById('docTipo').value = lote.docTipo;
+      document.getElementById('docNro').value = lote.docNro;
+      document.getElementById('loteId').value = lote.loteId;
+      document.getElementById('proveedor').value = lote.proveedor;
+      document.getElementById('sexoGanado').value = lote.sexo;
+      document.getElementById('fechaLote').value = lote.fecha;
+      document.getElementById('modalidadPagoLote').value = lote.modalidad;
+      document.getElementById('diasCredito').value = lote.diasCredito;
+      document.getElementById('kgBrutos').value = fmtBs(lote.kgBrutos);
+      document.getElementById('precioCanal').value = fmtBs(lote.precioCanal);
+      document.getElementById('trajoTraste').checked = lote.trajoTraste;
+      document.getElementById('cantTrasteDetalle').value = fmtBs(lote.cantTraste);
+      document.getElementById('precioTrasteDetalle').value = fmtBs(lote.precioTraste);
+
+      document.getElementById('checkVerificoTasas').checked = true;
+      toggleFormularioLote();
+      toggleDiasCredito();
+      toggleTrasteInput();
+      calcularPreviewLote();
+
+      document.getElementById('btnGuardarLote').innerText = 'Guardar Cambios del Lote';
+      document.getElementById('btnCancelarEdicionLote').style.display = 'block';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    let prot = DB_GANADO.recepcionesProteinas.find(p => p.idUnico === idUnico);
+    if (prot) {
+      document.getElementById('editandoProtId').value = prot.idUnico;
+      document.getElementById('provPolloCochino').value = prot.proveedor;
+      document.getElementById('nroFactPolloCochino').value = prot.nro;
+      document.getElementById('fechaPolloCochino').value = prot.fecha;
+      document.getElementById('itemPolloCochino').value = prot.item;
+      document.getElementById('kgPolloCochino').value = fmtBs(prot.cantidad);
+      document.getElementById('costoKgPolloCochino').value = fmtBs(prot.costoUnitario);
+      document.getElementById('modPolloCochino').value = prot.modalidad;
+      toggleDiasCreditoPollo();
+      calcularPreviewPolloCochino();
+
+      document.getElementById('btnRegPollo').innerText = 'Guardar Cambios de Proteína';
+      document.getElementById('btnCancelarEdicionProt').style.display = 'block';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    let mg = DB_GANADO.facturasMargen.find(m => m.idUnico === idUnico);
+    if (mg) {
+      document.getElementById('editandoMgId').value = mg.idUnico;
+      document.getElementById('mgProveedor').value = mg.proveedor;
+      document.getElementById('mgNroFact').value = mg.ref.replace('Doc. ', '').split(' (')[0];
+      document.getElementById('mgFecha').value = mg.fecha;
+      document.getElementById('mgCategoriaSelect').value = mg.categoria;
+      document.getElementById('mgMontoUsd').value = fmtBs(mg.montoUsd);
+      sincronizarMontoMargenBs();
+      document.getElementById('mgPorcentaje').value = mg.porcentaje;
+      document.getElementById('mgModalidad').value = mg.modalidad;
+      toggleMargenCredito();
+      calcularPreviewMargen();
+
+      document.getElementById('btnRegMargen').innerText = 'Guardar Cambios de Factura';
+      document.getElementById('btnCancelarEdicionMg').style.display = 'block';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+  }
+
+  function abrirPanelAbonoInline(idUnico) {
+    const item = DB_GANADO.historial.find(h => h.idUnico === idUnico);
+    if(!item || item.estatus === 'ANULADA' || item.estatus === 'CONTADO') return;
+    facturaEnProcesoAbono = item;
+    document.getElementById('tituloAbonoInline').innerText = `💳 Abonar a Crédito: ${item.proveedor}`;
+    document.getElementById('subtituloAbonoInline').innerText = `Saldo pendiente: $${fmtBs(item.saldoPendienteUsd)}`;
+    document.getElementById('inputMontoAbono').value = fmtBs(item.saldoPendienteUsd);
+    document.getElementById('panelAbonoInline').style.display = 'block';
+  }
+
+  function cancelarAbonoInline() {
+    facturaEnProcesoAbono = null;
+    document.getElementById('panelAbonoInline').style.display = 'none';
+  }
+
+  function ejecutarAbonoInline() {
+    if (!facturaEnProcesoAbono) return;
+    let abonoUsd = parseM(document.getElementById('inputMontoAbono').value);
+    if (abonoUsd <= 0) return;
+    if (abonoUsd > facturaEnProcesoAbono.saldoPendienteUsd) abonoUsd = facturaEnProcesoAbono.saldoPendienteUsd;
+
+    facturaEnProcesoAbono.saldoPendienteUsd -= abonoUsd;
+    if (facturaEnProcesoAbono.saldoPendienteUsd <= 0.01) {
+      facturaEnProcesoAbono.estatus = 'PAGADA';
+    }
+    cancelarAbonoInline();
+    guardarDatosFirebase();
+  }
+
+  function anularItemHistorial(idUnico) {
+    if(!confirm("⚠️ ¿Está seguro de ANULAR este documento? Se marcará como ANULADA, su saldo pasará a 0 y se reajustará el inventario.")) return;
+    let item = DB_GANADO.historial.find(h => h.idUnico === idUnico);
+    if(item) {
+      item.estatus = 'ANULADA';
+      item.saldoPendienteUsd = 0;
+
+      if (item.tipoModulo === 'PROTEINA' && item.itemAsociado && item.cantidadIngresada) {
+        if(DB_GANADO.cortesRes[item.itemAsociado]) {
+          DB_GANADO.cortesRes[item.itemAsociado].stock = Math.max(0, DB_GANADO.cortesRes[item.itemAsociado].stock - item.cantidadIngresada);
+        }
+      }
+
+      let protObj = DB_GANADO.recepcionesProteinas.find(p => p.idUnico === idUnico);
+      if(protObj && DB_GANADO.cortesRes[protObj.item]) {
+        DB_GANADO.cortesRes[protObj.item].stock = Math.max(0, DB_GANADO.cortesRes[protObj.item].stock - protObj.cantidad);
+      }
+
+      let mgObj = DB_GANADO.facturasMargen.find(m => m.idUnico === idUnico);
+      if(mgObj) {
+        mgObj.montoUsd = 0;
+        mgObj.ventaProyectada = 0;
+      }
+    }
+    guardarDatosFirebase();
+  }
+
+  function poblarSelectoresDesposte() {
+    const sel = document.getElementById('selectLoteDesposte');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">-- Seleccione un Lote de Ganado --</option>';
+    if (DB_GANADO.lotes) {
+      DB_GANADO.lotes.filter(l => !l.despostado).forEach(l => {
+        sel.innerHTML += `<option value="${l.loteId}">${l.loteId} - Hato: ${l.proveedor} (${fmtBs(l.kgBrutos)} KG)</option>`;
+      });
+    }
+  }
+
+  function cargarEstructuraDesposte() {
+    let loteId = document.getElementById('selectLoteDesposte').value;
+    let lote = DB_GANADO.lotes.find(l => l.loteId === loteId);
+    let cont = document.getElementById('contenedorCortesDesposte');
+    let seccionTraste = document.getElementById('seccionTrasteDesposte');
+    
+    if(!lote) {
+      document.getElementById('despKgCanal').value = '';
+      document.getElementById('despCostoKg').value = '';
+      if(cont) cont.innerHTML = '';
+      if(seccionTraste) seccionTraste.style.display = 'none';
+      return;
+    }
+
+    document.getElementById('despKgCanal').value = fmtBs(lote.kgBrutos) + ' KG';
+    document.getElementById('despCostoKg').value = '$' + fmtBs(lote.precioCanal);
+    
+    let pCostillaUsd = DB_GANADO.cortesRes["COSTILLA DE RES"].precio;
+    let pLagartoUsd = DB_GANADO.cortesRes["LAGARTO CON HUESO"].precio;
+    document.getElementById('lblPrecioCostillaCalc').innerText = fmtBs(pCostillaUsd);
+    document.getElementById('lblPrecioCostillaCalcBs').innerText = fmtBs(pCostillaUsd * DB_GANADO.tasaBcv);
+    document.getElementById('lblPrecioLagartoCalc').innerText = fmtBs(pLagartoUsd);
+    document.getElementById('lblPrecioLagartoCalcBs').innerText = fmtBs(pLagartoUsd * DB_GANADO.tasaBcv);
+
+    if(cont) {
+      let cortesResList = [
+        "CARNE DE PRIMERA", "CARNE DE SEGUNDA", "SOLOMO / PUNTA / LOMITO",
+        "COSTILLA DE RES", "LAGARTO CON HUESO", "HUESO ROJO (HR)", "PELLEJO / SEBO", "HUESO BLANCO / ESQUELETO", "CARNE MOLIDA"
+      ];
+      cont.innerHTML = '';
+      cortesResList.forEach(c => {
+        cont.innerHTML += `<div class="form-row">
+          <div class="form-group"><label>${c}:</label><input type="text" class="corte-desposte-input campo-enter" data-corte="${c}" placeholder="0,00 KG" oninput="validarMascara(this); calcularAnalisisDesposte();"></div>
+        </div>`;
+      });
+    }
+
+    if(seccionTraste) seccionTraste.style.display = lote.trajoTraste ? 'block' : 'none';
+    calcularAnalisisDesposte();
+  }
+
+  function calcularAnalisisDesposte() {
+    let loteId = document.getElementById('selectLoteDesposte').value;
+    let lote = DB_GANADO.lotes.find(l => l.loteId === loteId);
+    if (!lote) return;
+
+    let kgBrutos = lote.kgBrutos;
+    let totalKgAprovechados = 0;
+    let pesoCostillaLagarto = 0;
+    let carneLimpiaNeta = 0;
+
+    document.querySelectorAll('.corte-desposte-input').forEach(inp => {
+      let nombreCorte = inp.getAttribute('data-corte');
+      let val = parseM(inp.value);
+      totalKgAprovechados += val;
+      
+      if (nombreCorte === "COSTILLA DE RES" || nombreCorte === "LAGARTO CON HUESO") {
+        pesoCostillaLagarto += val;
+      }
+
+      if (nombreCorte === "CARNE DE PRIMERA" || nombreCorte === "CARNE DE SEGUNDA" || nombreCorte === "CARNE MOLIDA" || nombreCorte === "SOLOMO / PUNTA / LOMITO") {
+        carneLimpiaNeta += val;
+      }
+    });
+
+    let alertaIncoherencia = document.getElementById('alertaIncoherenciaKilos');
+    let btnGuardar = document.getElementById('btnAccionDesposte');
+
+    if (totalKgAprovechados > kgBrutos + 0.01) {
+      if (alertaIncoherencia) alertaIncoherencia.style.display = 'block';
+      if (btnGuardar) {
+        btnGuardar.setAttribute('disabled', 'true');
+        btnGuardar.style.opacity = '0.5';
+        btnGuardar.style.cursor = 'not-allowed';
+      }
+    } else {
+      if (alertaIncoherencia) alertaIncoherencia.style.display = 'none';
+      if (btnGuardar) {
+        btnGuardar.removeAttribute('disabled');
+        btnGuardar.style.opacity = '1';
+        btnGuardar.style.cursor = 'pointer';
+      }
+    }
+
+    let kgMerma = Math.max(0, kgBrutos - totalKgAprovechados);
+    let porcRendimiento = kgBrutos > 0 ? (totalKgAprovechados / kgBrutos) * 100 : 0;
+    let precioCostilla = DB_GANADO.cortesRes["COSTILLA DE RES"].precio;
+    let precioLagarto = DB_GANADO.cortesRes["LAGARTO CON HUESO"].precio;
+    
+    let recuperacionUsd = (parseM(document.querySelector('[data-corte="COSTILLA DE RES"]').value) * precioCostilla) + 
+                          (parseM(document.querySelector('[data-corte="LAGARTO CON HUESO"]').value) * precioLagarto);
+    let recuperacionBs = recuperacionUsd * DB_GANADO.tasaBcv;
+
+    let totalProveedorUsd = lote.montoTotalUsd;
+    let totalProveedorBs = 0;
+
+    if (lote.modalidad && lote.modalidad.includes('MIXTO')) {
+      let bcvUsd = totalProveedorUsd / 2;
+      let paralUsd = totalProveedorUsd / 2;
+      totalProveedorBs = (bcvUsd * DB_GANADO.tasaBcv) + (paralUsd * DB_GANADO.tasaParalelo);
+    } else if (lote.modalidad && lote.modalidad.includes('PARALELO')) {
+      totalProveedorBs = totalProveedorUsd * DB_GANADO.tasaParalelo;
+    } else {
+      totalProveedorBs = totalProveedorUsd * DB_GANADO.tasaBcv;
+    }
+
+    let costoNetoBs = totalProveedorBs - recuperacionBs;
+    let costoRealBsKg = carneLimpiaNeta > 0 ? costoNetoBs / carneLimpiaNeta : 0;
+    let costoRealUsdKg = costoRealBsKg / DB_GANADO.tasaBcv;
+
+    let perdUsd = kgMerma * lote.precioCanal;
+    let perdBs = perdUsd * DB_GANADO.tasaBcv;
+
+    document.getElementById('lblTotalProveedorBs').innerText = `$${fmtBs(totalProveedorUsd)} | Bs. ${fmtBs(totalProveedorBs)}`;
+    document.getElementById('lblRecuperacionBs').innerText = `- Bs. ${fmtBs(recuperacionBs)}`;
+    document.getElementById('lblCostoNetoBs').innerText = `Bs. ${fmtBs(costoNetoBs)}`;
+    document.getElementById('lblKgCarneLimpia').innerText = `${fmtBs(carneLimpiaNeta)} KG`;
+    document.getElementById('lblCostoRealBsKg').innerText = `Bs. ${fmtBs(costoRealBsKg)} / KG`;
+    document.getElementById('lblCostoRealUsdKg').innerText = `$${fmtBs(costoRealUsdKg)} / KG`;
+
+    document.getElementById('kpiApro').innerText = `${fmtBs(totalKgAprovechados)} KG`;
+    document.getElementById('kpiRend').innerText = `${fmtBs(porcRendimiento)}%`;
+    document.getElementById('kpiMerma').innerText = `${fmtBs(kgMerma)} KG`;
+    document.getElementById('kpiMermaUsd').innerText = `$${fmtBs(perdUsd)} (Bs. ${fmtBs(perdBs)})`;
+
+    document.getElementById('alertaMermaRoja').style.display = (kgMerma >= 5 && kgMerma <= 15) ? 'block' : 'none';
+    document.getElementById('cardCostoRealComerciante').style.display = 'block';
+  }
+
+  function prepararGuardarDesposte(e) {
+    e.preventDefault();
+    let loteId = document.getElementById('selectLoteDesposte').value;
+    if(!loteId) {
+      showAlert('alertDesposte', '⚠️ Debe seleccionar un lote de ganado.', 'error');
+      return;
+    }
+
+    let totalKgIngresados = 0;
+    document.querySelectorAll('.corte-desposte-input').forEach(inp => {
+      totalKgIngresados += parseM(inp.value);
+    });
+
+    if (totalKgIngresados <= 0) {
+      showAlert('alertDesposte', '⚠️ No se puede guardar un desposte sin haber ingresado los kilos de los cortes en la pizarra.', 'error');
+      return;
+    }
+
+    document.getElementById('btnAccionDesposte').style.display = 'none';
+    document.getElementById('panelConfirmDesposte').style.display = 'block';
+  }
+
+  function cancelarGuardarDesposte() {
+    document.getElementById('btnAccionDesposte').style.display = 'block';
+    document.getElementById('panelConfirmDesposte').style.display = 'none';
+  }
+
+  function ejecutarGuardarDesposte() {
+    let loteId = document.getElementById('selectLoteDesposte').value;
+    let lote = DB_GANADO.lotes.find(l => l.loteId === loteId);
+    if(!lote) return;
+
+    let totalKg = 0;
+    document.querySelectorAll('.corte-desposte-input').forEach(inp => {
+      let corte = inp.getAttribute('data-corte');
+      let val = parseM(inp.value);
+      totalKg += val;
+      if(DB_GANADO.cortesRes[corte]) DB_GANADO.cortesRes[corte].stock += val;
+    });
+
+    if (lote.trajoTraste) {
+      document.querySelectorAll('.traste-despiece-input').forEach(inp => {
+        let pieza = inp.getAttribute('data-pieza');
+        let val = parseM(inp.value);
+        if(DB_GANADO.cortesRes[pieza]) DB_GANADO.cortesRes[pieza].stock += val;
+      });
+    }
+
+    lote.despostado = true;
+    if(!DB_GANADO.lotesDespostadosHistorial) DB_GANADO.lotesDespostadosHistorial = [];
+    DB_GANADO.lotesDespostadosHistorial.push({
+      loteId, proveedor: lote.proveedor, kgBrutos: lote.kgBrutos, rendimiento: (totalKg / lote.kgBrutos) * 100, kgCarneLimpia: totalKg
+    });
+
+    guardarDatosFirebase();
+    cancelarGuardarDesposte();
+    document.getElementById('formDesposte').reset();
+    document.getElementById('cardCostoRealComerciante').style.display = 'none';
+    showAlert('alertDesposte', "✨ ¡Desposte guardado y stock cargado a Cava con éxito!", "success");
+  }
+
+  function registrarProduccionChorizo(e) {
+    e.preventDefault();
+    let kg = parseM(document.getElementById('kgChorizoProducido').value);
+    if(kg <= 0) {
+      showAlert('alertChorizo', '⚠️ Ingrese una cantidad válida de kilos.', 'error');
+      return;
+    }
+    DB_GANADO.cortesRes["PASTA DE CHORIZO"].stock += kg;
+    guardarDatosFirebase();
+    document.getElementById('formProdChorizo').reset();
+    ponerFechaHoy('fechaChorizo');
+    showAlert('alertChorizo', `✨ Se sumaron ${fmtBs(kg)} KG de Pasta de Chorizo a la Cava.`, 'success');
+  }
+
+  function renderTablaPrecios() {
+    const tbody = document.getElementById('tablaPreciosRes');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    for(let corte in DB_GANADO.cortesRes) {
+      let item = DB_GANADO.cortesRes[corte];
+      let bss = item.precio * DB_GANADO.tasaBcv;
+      let valMostrador = item.precio > 0 ? fmtBs(item.precio) : '';
+      tbody.innerHTML += `<tr>
+        <td><strong>${corte}</strong></td>
+        <td>
+          <span style="font-weight:bold; color:var(--success);">$</span>
+          <input type="text" class="precio-mostrador-input campo-enter" value="${valMostrador}" placeholder="0,00" onchange="actualizarPrecioCorte('${corte}', this.value, this)" oninput="validarMascara(this)" style="width:90px; font-weight:bold; color:var(--success); padding:4px 6px;">
+        </td>
+        <td><strong style="color:var(--primary);">Bs. ${fmtBs(bss)}</strong></td>
+        <td>$${fmtBs(item.costo)}</td>
+      </tr>`;
+    }
+  }
+
+  function actualizarPrecioCorte(corte, nuevoValorStr, inputEl) {
+    let nuevoPrecio = parseM(nuevoValorStr);
+    if (nuevoPrecio > 500) { alert("⚠️ Precio muy alto. Verifique decimales."); return; }
+    DB_GANADO.cortesRes[corte].precio = nuevoPrecio;
+    guardarDatosFirebase();
+  }
+
+  function renderCava() {
+    const cont = document.getElementById('contenedorCavaCategorizada');
+    if(!cont) return;
+    cont.innerHTML = '';
+
+    let listaRes = [
+      "CARNE DE PRIMERA", "CARNE DE SEGUNDA", "SOLOMO / PUNTA / LOMITO",
+      "COSTILLA DE RES", "LAGARTO CON HUESO", "HUESO ROJO (HR)", "PELLEJO / SEBO",
+      "HUESO BLANCO / ESQUELETO", "CARNE MOLIDA", "PASTA DE CHORIZO", "HÍGADO", "MONDONGO", "BOFE",
+      "CORAZÓN", "PATAS", "LENGUA"
+    ];
+
+    let listaProteinas = ["CHULETA DE CERDO", "POLLO CARIDAD", "POLLO PEPOLLO", "OVEJO"];
+
+    let totalResKg = 0;
+    let totalProteinasKg = 0;
+
+    let htmlRes = `<div class="cat-header">1. 🥩 CARNES DE RES Y SUBPRODUCTOS (DESPOSTE Y VÍSCERAS)</div><div class="table-responsive"><table><thead><tr><th>Rubro</th><th>Stock</th><th>Costo ($)</th><th>Venta ($)</th></tr></thead><tbody>`;
+    let htmlProteinas = `<div class="cat-header" style="background:#fef3c7; color:#92400e; border-left-color:#f59e0b;">2. 🍗 CHULETA DE CERDO, POLLO Y OVEJO</div><div class="table-responsive"><table><thead><tr><th>Rubro</th><th>Stock</th><th>Costo ($)</th><th>Venta ($)</th></tr></thead><tbody>`;
+    
+    for(let corte in DB_GANADO.cortesRes) {
+      let item = DB_GANADO.cortesRes[corte];
+      let cUsd = item.stock * item.costo;
+      let vUsd = item.stock * item.precio;
+
+      if (listaRes.includes(corte)) {
+        totalResKg += item.stock;
+        htmlRes += `<tr><td><strong>${corte}</strong></td><td>${fmtBs(item.stock)} ${item.unidad}</td><td>$${fmtBs(cUsd)}</td><td>$${fmtBs(vUsd)}</td></tr>`;
+      } else if (listaProteinas.includes(corte)) {
+        totalProteinasKg += item.stock;
+        htmlProteinas += `<tr><td><strong>${corte}</strong></td><td>${fmtBs(item.stock)} ${item.unidad}</td><td>$${fmtBs(cUsd)}</td><td>$${fmtBs(vUsd)}</td></tr>`;
+      }
+    }
+
+    htmlRes += `</tbody></table></div>`;
+    htmlProteinas += `</tbody></table></div>`;
+
+    let htmlCategorias = `<div class="cat-header" style="background:#f3e8ff; color:#6b21a8; border-left-color:#a855f7;">3. 📦 CATEGORÍAS REGISTRADAS (VIGENTES POR MARGEN %)</div><div class="table-responsive"><table><thead><tr><th>Categoría</th><th>Inversión Acumulada ($)</th><th>Venta Proyectada ($)</th><th>Ganancia Estimada ($)</th><th>Acción</th></tr></thead><tbody>`;
+
+    let cantCats = 0;
+    if (DB_GANADO.categoriasPersonalizadas && DB_GANADO.categoriasPersonalizadas.length > 0) {
+      DB_GANADO.categoriasPersonalizadas.forEach(cat => {
+        cantCats++;
+        let invUsd = 0;
+        let vtaUsd = 0;
+        let ganUsd = 0;
+
+        if (DB_GANADO.facturasMargen) {
+          DB_GANADO.facturasMargen.filter(f => f.categoria === cat).forEach(f => {
+            invUsd += (f.montoUsd || 0);
+            vtaUsd += (f.ventaProyectada || 0);
+            ganUsd += (f.gananciaUsd || 0);
+          });
+        }
+
+        htmlCategorias += `<tr>
+          <td><strong>${cat}</strong></td>
+          <td>$${fmtBs(invUsd)}</td>
+          <td>$${fmtBs(vtaUsd)}</td>
+          <td><strong style="color:var(--success);">$${fmtBs(ganUsd)}</strong></td>
+          <td><button class="btn-danger" onclick="eliminarCategoriaPersonalizada('${cat}')" style="padding:2px 6px; font-size:0.7rem;">🗑️ Eliminar Categoría</button></td>
+        </tr>`;
+      });
+    } else {
+      htmlCategorias += `<tr><td colspan="5" style="text-align:center;">No ha registrado categorías de mercancía por margen aún.</td></tr>`;
+    }
+    htmlCategorias += `</tbody></table></div>`;
+
+    cont.innerHTML = htmlRes + htmlProteinas + htmlCategorias;
+
+    if(document.getElementById('lblKilosResCava')) document.getElementById('lblKilosResCava').innerText = `${fmtBs(totalResKg)} KG`;
+    if(document.getElementById('lblKilosOtrasProteinasCava')) document.getElementById('lblKilosOtrasProteinasCava').innerText = `${fmtBs(totalProteinasKg)} KG`;
+    if(document.getElementById('lblCategoriasCountCava')) document.getElementById('lblCategoriasCountCava').innerText = `${cantCats} Categorías`;
+  }
+
+  function eliminarCategoriaPersonalizada(cat) {
+    if(!confirm(`⚠️ ¿Desea eliminar la categoría "${cat}"? Las facturas ya guardadas no se borrarán pero no aparecerá para nuevas recepciones.`)) return;
+    DB_GANADO.categoriasPersonalizadas = DB_GANADO.categoriasPersonalizadas.filter(c => c !== cat);
+    guardarDatosFirebase();
+  }
+
+  function renderFormularioValery() {
+    const contRes = document.getElementById('contenedorVentasRes');
+    if(contRes) {
+      contRes.innerHTML = '';
+      for(let corte in DB_GANADO.cortesRes) {
+        let item = DB_GANADO.cortesRes[corte];
+        contRes.innerHTML += `<div class="form-row"><div class="form-group"><input type="text" value="${corte}" readonly style="background:#eee;"></div><div class="form-group"><input type="text" class="valery-corte-qty campo-enter" data-corte="${corte}" placeholder="0,00 ${item.unidad} vendidos" oninput="validarMascara(this); calcularArqueoGanado();"></div></div>`;
+      }
+    }
+
+    const contCat = document.getElementById('contenedorVentasCategoriasDinamicas');
+    if(contCat) {
+      contCat.innerHTML = '';
+      if(DB_GANADO.categoriasPersonalizadas && DB_GANADO.categoriasPersonalizadas.length > 0) {
+        for(let i = 0; i < DB_GANADO.categoriasPersonalizadas.length; i += 2) {
+          let cat1 = DB_GANADO.categoriasPersonalizadas[i];
+          let cat2 = DB_GANADO.categoriasPersonalizadas[i+1];
+
+          let htmlRow = `<div class="form-row">
+            <div class="form-group"><label>${cat1} ($ Vendido):</label><input type="text" class="viveres-cierre-qty campo-enter" data-cat="${cat1}" placeholder="0,00 $" oninput="validarMascara(this); calcularArqueoGanado();"></div>`;
+          
+          if(cat2) {
+            htmlRow += `<div class="form-group"><label>${cat2} ($ Vendido):</label><input type="text" class="viveres-cierre-qty campo-enter" data-cat="${cat2}" placeholder="0,00 $" oninput="validarMascara(this); calcularArqueoGanado();"></div>`;
+          } else {
+            htmlRow += `<div class="form-group"></div>`;
+          }
+          htmlRow += `</div>`;
+          contCat.innerHTML += htmlRow;
+        }
+      } else {
+        contCat.innerHTML = `<p style="font-size:0.8rem; color:#666;">No hay categorías creadas por porcentaje aún. Puede agregarlas desde el Módulo 1 (Recepción Rápida).</p>`;
+      }
+    }
+  }
+
+  function calcularArqueoGanado() {
+    let totalUsd = 0;
+
+    document.querySelectorAll('.valery-corte-qty').forEach(i => {
+      let corte = i.getAttribute('data-corte');
+      let cant = parseM(i.value);
+      let precio = DB_GANADO.cortesRes[corte] ? DB_GANADO.cortesRes[corte].precio : 0;
+      totalUsd += cant * precio;
+    });
+
+    document.querySelectorAll('.viveres-cierre-qty').forEach(i => {
+      let montoVendedo = parseM(i.value);
+      totalUsd += montoVendedo;
+    });
+
+    let arqUsd = parseM(document.getElementById('cajaUsd').value);
+    let arqEfecBs = parseM(document.getElementById('cajaEfecBs').value);
+    let arqPunto = parseM(document.getElementById('cajaPunto').value);
+    let arqTransf = parseM(document.getElementById('cajaTransf').value);
+
+    let totalArqueoBs = (arqUsd * DB_GANADO.tasaBcv) + arqEfecBs + arqPunto + arqTransf;
+    let ventaBsTotal = totalUsd * DB_GANADO.tasaBcv;
+
+    document.getElementById('txtVentaTotalUsd').innerText = `$${fmtBs(totalUsd)}`;
+    document.getElementById('txtVentaTotalBs').innerText = `Bs. ${fmtBs(ventaBsTotal)}`;
+    document.getElementById('txtTotalArqueoBs').innerText = `Bs. ${fmtBs(totalArqueoBs)}`;
+  }
+
+  function prepararCierreCaja(e) {
+    e.preventDefault();
+    document.getElementById('btnAccionCierre').style.display = 'none';
+    document.getElementById('panelConfirmCierre').style.display = 'block';
+  }
+
+  function cancelarCierreCaja() {
+    document.getElementById('btnAccionCierre').style.display = 'block';
+    document.getElementById('panelConfirmCierre').style.display = 'none';
+  }
+
+  function ejecutarCierreCaja() {
+    let fecha = document.getElementById('fechaCierre').value;
+    let kgPul = parseM(document.getElementById('kgPulituraCierre').value);
+    if(kgPul > 0) DB_GANADO.cortesRes["PELLEJO / SEBO"].stock += kgPul;
+
+    let totalUsd = 0;
+    document.querySelectorAll('.valery-corte-qty').forEach(i => {
+      let corte = i.getAttribute('data-corte');
+      let cant = parseM(i.value);
+      if(cant > 0 && DB_GANADO.cortesRes[corte]) {
+        totalUsd += cant * DB_GANADO.cortesRes[corte].precio;
+        DB_GANADO.cortesRes[corte].stock = Math.max(0, DB_GANADO.cortesRes[corte].stock - cant);
+      }
+    });
+
+    document.querySelectorAll('.viveres-cierre-qty').forEach(i => {
+      let montoVendedo = parseM(i.value);
+      totalUsd += montoVendedo;
+    });
+
+    let arqUsd = parseM(document.getElementById('cajaUsd').value);
+    let arqEfecBs = parseM(document.getElementById('cajaEfecBs').value);
+    let arqPunto = parseM(document.getElementById('cajaPunto').value);
+    let arqTransf = parseM(document.getElementById('cajaTransf').value);
+
+    let totalArqueoBs = (arqUsd * DB_GANADO.tasaBcv) + arqEfecBs + arqPunto + arqTransf;
+    let ventaBs = totalUsd * DB_GANADO.tasaBcv;
+
+    DB_GANADO.cierresDiarios.push({
+      fecha, kgPulitura: kgPul, ventaUsd: totalUsd, ventaBs, arqueoBs: totalArqueoBs, estado: 'Cuadrado'
+    });
+
+    guardarDatosFirebase();
+    cancelarCierreCaja();
+    document.getElementById('formCierreValery').reset();
+    ponerFechaHoy('fechaCierre');
+    renderFormularioValery();
+    showAlert('alertValery', "✨ Cierre diario archivado con éxito.", "success");
+  }
+
+  function calcularReporteGanancias() {
+    let fDesde = document.getElementById('repGananciaDesde').value;
+    let fHasta = document.getElementById('repGananciaHasta').value;
+
+    let ingresosTotalesUsd = 0;
+    let costosTotalesUsd = 0;
+    let gastosTotalesUsd = 0;
+
+    if (DB_GANADO.cierresDiarios) {
+      DB_GANADO.cierresDiarios.forEach(c => {
+        if ((!fDesde || c.fecha >= fDesde) && (!fHasta || c.fecha <= fHasta)) {
+          ingresosTotalesUsd += (c.ventaUsd || 0);
+        }
+      });
+    }
+
+    if (DB_GANADO.facturasMargen) {
+      DB_GANADO.facturasMargen.forEach(f => {
+        if ((!fDesde || f.fecha >= fDesde) && (!fHasta || f.fecha <= fHasta)) {
+          costosTotalesUsd += (f.montoUsd || 0);
+        }
+      });
+    }
+
+    if (DB_GANADO.recepcionesProteinas) {
+      DB_GANADO.recepcionesProteinas.forEach(p => {
+        if ((!fDesde || p.fecha >= fDesde) && (!fHasta || p.fecha <= fHasta)) {
+          costosTotalesUsd += (p.montoUsd || 0);
+        }
+      });
+    }
+
+    if (DB_GANADO.lotes) {
+      DB_GANADO.lotes.forEach(l => {
+        if ((!fDesde || l.fecha >= fDesde) && (!fHasta || l.fecha <= fHasta)) {
+          costosTotalesUsd += (l.montoTotalUsd || 0);
+        }
+      });
+    }
+
+    if (DB_GANADO.gastosNegocio) {
+      DB_GANADO.gastosNegocio.forEach(g => {
+        if ((!fDesde || g.fecha >= fDesde) && (!fHasta || g.fecha <= fHasta)) {
+          gastosTotalesUsd += (g.montoUsd || 0);
+        }
+      });
+    }
+
+    let gananciaNetaUsd = ingresosTotalesUsd - costosTotalesUsd - gastosTotalesUsd;
+
+    document.getElementById('kpiRepIngresosUsd').innerText = `$${fmtBs(ingresosTotalesUsd)}`;
+    document.getElementById('kpiRepIngresosBs').innerText = `Bs. ${fmtBs(ingresosTotalesUsd * DB_GANADO.tasaBcv)}`;
+
+    document.getElementById('kpiRepCostosUsd').innerText = `$${fmtBs(costosTotalesUsd)}`;
+    document.getElementById('kpiRepCostosBs').innerText = `Bs. ${fmtBs(costosTotalesUsd * DB_GANADO.tasaBcv)}`;
+
+    document.getElementById('kpiRepGastosUsd').innerText = `$${fmtBs(gastosTotalesUsd)}`;
+    document.getElementById('kpiRepGastosBs').innerText = `Bs. ${fmtBs(gastosTotalesUsd * DB_GANADO.tasaBcv)}`;
+
+    document.getElementById('kpiRepGananciaUsd').innerText = `$${fmtBs(gananciaNetaUsd)}`;
+    document.getElementById('kpiRepGananciaBs').innerText = `Bs. ${fmtBs(gananciaNetaUsd * DB_GANADO.tasaBcv)}`;
+  }
+
+  function renderReportesGenerales() {
+    let tStockCritico = document.getElementById('tablaReporteStockCritico');
+    if (tStockCritico) {
+      tStockCritico.innerHTML = '';
+      let itemsCriticos = 0;
+      for (let corte in DB_GANADO.cortesRes) {
+        let item = DB_GANADO.cortesRes[corte];
+        if (item.stock < 15) {
+          itemsCriticos++;
+          let colorAlerta = item.stock <= 5 ? '#d9534f' : '#f0ad4e';
+          let textoEstado = item.stock <= 5 ? '🔴 CRÍTICO (Muy bajo)' : '⚠️ ADVERTENCIA (Bajo)';
+          tStockCritico.innerHTML += `<tr>
+            <td><strong>${corte}</strong></td>
+            <td><strong>${fmtBs(item.stock)}</strong></td>
+            <td>${item.unidad}</td>
+            <td><span style="color:white; background:${colorAlerta}; padding:2px 6px; border-radius:4px; font-weight:bold; font-size:0.75rem;">${textoEstado}</span></td>
+          </tr>`;
+        }
+      }
+      if (itemsCriticos === 0) {
+        tStockCritico.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#2e7d32; font-weight:bold;">✨ ¡Excelente! No hay productos con stock crítico en este momento.</td></tr>`;
+      }
+    }
+
+    let tRendLotes = document.getElementById('tablaReporteRendimientoLotes');
+    if (tRendLotes) {
+      if (!DB_GANADO.lotesDespostadosHistorial || DB_GANADO.lotesDespostadosHistorial.length === 0) {
+        tRendLotes.innerHTML = `<tr><td colspan="5" style="text-align:center;">Sin lotes despostados registrados.</td></tr>`;
+      } else {
+        tRendLotes.innerHTML = '';
+        DB_GANADO.lotesDespostadosHistorial.forEach(d => {
+          tRendLotes.innerHTML += `<tr>
+            <td><strong>${d.loteId}</strong></td>
+            <td>${d.proveedor || 'N/A'}</td>
+            <td>${fmtBs(d.kgBrutos || 0)} KG</td>
+            <td>${fmtBs(d.kgCarneLimpia || 0)} KG</td>
+            <td><strong style="color:var(--success);">${fmtBs(d.rendimiento)}%</strong></td>
+          </tr>`;
+        });
+      }
+    }
+
+    let tbodyEntradas = document.getElementById('tbodyReporteEntradasCarnicero');
+    if (tbodyEntradas) {
+      tbodyEntradas.innerHTML = '';
+      let entradasEncontradas = false;
+
+      if (DB_GANADO.lotes && DB_GANADO.lotes.length > 0) {
+        entradasEncontradas = true;
+        DB_GANADO.lotes.forEach(l => {
+          let desposteAsoc = DB_GANADO.lotesDespostadosHistorial ? DB_GANADO.lotesDespostadosHistorial.find(d => d.loteId === l.loteId) : null;
+          let detRend = desposteAsoc ? `Rendimiento: ${fmtBs(desposteAsoc.rendimiento)}% (${fmtBs(desposteAsoc.kgCarneLimpia)} KG carne)` : 'Pendiente por Despostar';
+
+          tbodyEntradas.innerHTML += `<tr>
+            <td>${l.fecha}</td>
+            <td><strong>${l.loteId}</strong> (${l.docTipo} ${l.docNro})</td>
+            <td>${l.proveedor}</td>
+            <td><strong>GANADO (${l.sexo})</strong></td>
+            <td>${fmtBs(l.kgBrutos)} KG</td>
+            <td>$${fmtBs(l.precioCanal)} / KG</td>
+            <td>$${fmtBs(l.montoTotalUsd)}</td>
+            <td><span style="color:${desposteAsoc?'#2e7d32':'#e65100'}; font-weight:bold;">${detRend}</span></td>
+          </tr>`;
+        });
+      }
+
+      if (DB_GANADO.recepcionesProteinas && DB_GANADO.recepcionesProteinas.length > 0) {
+        entradasEncontradas = true;
+        DB_GANADO.recepcionesProteinas.forEach(p => {
+          tbodyEntradas.innerHTML += `<tr>
+            <td>${p.fecha}</td>
+            <td>Doc. ${p.nro}</td>
+            <td>${p.proveedor}</td>
+            <td><strong>${p.item}</strong></td>
+            <td>${fmtBs(p.cantidad)} KG</td>
+            <td>$${fmtBs(p.costoUnitario)} / KG</td>
+            <td>$${fmtBs(p.montoUsd)}</td>
+            <td>Ingresado a Cava</td>
+          </tr>`;
+        });
+      }
+
+      if (!entradasEncontradas) {
+        tbodyEntradas.innerHTML = `<tr><td colspan="8" style="text-align:center;">Sin entradas de mercancía registradas.</td></tr>`;
+      }
+    }
+
+    let tbodyCxp = document.getElementById('tbodyReporteCxp');
+    if (tbodyCxp) {
+      let facturasCredito = DB_GANADO.historial ? DB_GANADO.historial.filter(h => h.estatus === 'PENDIENTE') : [];
+      
+      if (facturasCredito.length === 0) {
+        tbodyCxp.innerHTML = `<tr><td colspan="6" style="text-align:center;">No hay cuentas por pagar a crédito pendientes.</td></tr>`;
+        if(document.getElementById('kpiCxpTotalUsd')) document.getElementById('kpiCxpTotalUsd').innerText = '$0,00';
+        if(document.getElementById('kpiCxpTotalBs')) document.getElementById('kpiCxpTotalBs').innerText = 'Bs. 0,00';
+        if(document.getElementById('kpiCxpCantFacturas')) document.getElementById('kpiCxpCantFacturas').innerText = '0';
+      } else {
+        tbodyCxp.innerHTML = '';
+        let totalCxpUsd = 0;
+        let totalCxpBs = 0;
+
+        facturasCredito.forEach(h => {
+          let saldoUsd = h.saldoPendienteUsd !== undefined ? h.saldoPendienteUsd : h.totalUsd;
+          let totalBsActual = h.modalidad && h.modalidad.includes('CONTADO_BCV') ? saldoUsd * DB_GANADO.tasaBcv :
+                              h.modalidad && h.modalidad.includes('CONTADO_PARALELO') ? saldoUsd * DB_GANADO.tasaParalelo :
+                              ((saldoUsd / 2) * DB_GANADO.tasaBcv) + ((saldoUsd / 2) * DB_GANADO.tasaParalelo);
+
+          totalCxpUsd += saldoUsd;
+          totalCxpBs += totalBsActual;
+
+          tbodyCxp.innerHTML += `<tr>
+            <td><strong>${h.vence}</strong></td>
+            <td>${h.proveedor}</td>
+            <td>${h.ref}</td>
+            <td>${h.modalidad}</td>
+            <td>$${fmtBs(saldoUsd)}</td>
+            <td><strong style="color:var(--primary);">Bs. ${fmtBs(totalBsActual)}</strong></td>
+          </tr>`;
+        });
+
+        if(document.getElementById('kpiCxpTotalUsd')) document.getElementById('kpiCxpTotalUsd').innerText = `$${fmtBs(totalCxpUsd)}`;
+        if(document.getElementById('kpiCxpTotalBs')) document.getElementById('kpiCxpTotalBs').innerText = `Bs. ${fmtBs(totalCxpBs)}`;
+        if(document.getElementById('kpiCxpCantFacturas')) document.getElementById('kpiCxpCantFacturas').innerText = facturasCredito.length;
+      }
+    }
+
+    let tbodyMargenes = document.getElementById('tbodyReporteMargenes');
+    if (tbodyMargenes) {
+      if(!DB_GANADO.facturasMargen || DB_GANADO.facturasMargen.length === 0) {
+        tbodyMargenes.innerHTML = `<tr><td colspan="7" style="text-align:center;">Sin facturas globales registradas.</td></tr>`;
+      } else {
+        tbodyMargenes.innerHTML = '';
+        DB_GANADO.facturasMargen.forEach(f => {
+          tbodyMargenes.innerHTML += `<tr>
+            <td>${f.fecha}</td>
+            <td>${f.proveedor}</td>
+            <td><strong>${f.categoria}</strong></td>
+            <td>$${fmtBs(f.montoUsd)}</td>
+            <td>${f.porcentaje}%</td>
+            <td>$${fmtBs(f.ventaProyectada)}</td>
+            <td><strong style="color:var(--success);">$${fmtBs(f.gananciaUsd)}</strong></td>
+          </tr>`;
+        });
+      }
+    }
+
+    const tCava = document.getElementById('repTablaCava');
+    if(tCava) {
+      tCava.innerHTML = '';
+      let sumCostoRepUsd = 0;
+      let sumVentaRepUsd = 0;
+
+      for(let corte in DB_GANADO.cortesRes) {
+        let item = DB_GANADO.cortesRes[corte];
+        let cUsd = item.stock * item.costo;
+        let vUsd = item.stock * item.precio;
+
+        sumCostoRepUsd += cUsd;
+        sumVentaRepUsd += vUsd;
+
+        tCava.innerHTML += `<tr>
+          <td><strong>${corte}</strong></td>
+          <td>${fmtBs(item.stock)} ${item.unidad}</td>
+          <td>$${fmtBs(cUsd)}</td>
+          <td>Bs. ${fmtBs(cUsd * DB_GANADO.tasaBcv)}</td>
+          <td>$${fmtBs(vUsd)}</td>
+          <td>Bs. ${fmtBs(vUsd * DB_GANADO.tasaBcv)}</td>
+        </tr>`;
+      }
+
+      tCava.innerHTML += `
+        <tr style="background:#e8f4fd; font-weight:bold; border-top: 2px solid #0d47a1;">
+          <td>TOTAL GENERAL INVENTARIO (PROTEÍNAS):</td>
+          <td>Activo</td>
+          <td>$${fmtBs(sumCostoRepUsd)}</td>
+          <td>Bs. ${fmtBs(sumCostoRepUsd * DB_GANADO.tasaBcv)}</td>
+          <td>$${fmtBs(sumVentaRepUsd)}</td>
+          <td>Bs. ${fmtBs(sumVentaRepUsd * DB_GANADO.tasaBcv)}</td>
+        </tr>
+      `;
+    }
+
+    const tCierres = document.getElementById('repTablaCierres');
+    if(tCierres) {
+      if(!DB_GANADO.cierresDiarios || DB_GANADO.cierresDiarios.length === 0) {
+        tCierres.innerHTML = `<tr><td colspan="6" style="text-align:center;">Sin cierres archivados todavía.</td></tr>`;
+      } else {
+        tCierres.innerHTML = '';
+        DB_GANADO.cierresDiarios.forEach(c => {
+          tCierres.innerHTML += `<tr>
+            <td>${c.fecha}</td>
+            <td>${fmtBs(c.kgPulitura)} KG</td>
+            <td>$${fmtBs(c.ventaUsd)}</td>
+            <td>Bs. ${fmtBs(c.ventaBs)}</td>
+            <td>Bs. ${fmtBs(c.arqueoBs)}</td>
+            <td><strong style="color:${c.estado.includes('Faltante')?'red':'green'};">${c.estado}</strong></td>
+          </tr>`;
+        });
+      }
+    }
+  }
+
+  function exportarReportesExcel() {
+    let htmlTabla = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="utf-8"><title>Reportes Integrales Porkys C.A.</title></head>
+      <body>
+        <h2>Reporte Operativo de Entradas (Carnicería y Cava)</h2>
+        ` + document.getElementById('tablaExcelEntradasCarnicero').outerHTML + `
+        <br><h2>1. Reporte Consolidado de Cuentas por Pagar (Solo Compras a Crédito)</h2>
+        ` + document.getElementById('tablaExcelCxp').outerHTML + `
+        <br><h2>2. Facturas Globales por Margen (%)</h2>
+        ` + document.getElementById('tablaExcelMargenes').outerHTML + `
+        <br><h2>3. Inventario General Consolidado</h2>
+        ` + document.getElementById('tablaExcelCava').outerHTML + `
+        <br><h2>4. Histórico de Cierres Diarios</h2>
+        ` + document.getElementById('tablaExcelCierres').outerHTML + `
+      </body>
+      </html>
+    `;
+
+    let blob = new Blob([htmlTabla], { type: 'application/vnd.ms-excel' });
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement('a');
+    a.href = url;
+    a.download = `Reportes_Integrales_Porkys_${new Date().toISOString().split('T')[0]}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  function verificarVencimientosCxP() {
+    const banner = document.getElementById('bannerAlertaVencimientos');
+    const contenido = document.getElementById('contenidoAlertaVencimiento');
+    if (!banner || !contenido) return;
+
+    const hoy = new Date().toISOString().split('T')[0];
+    let facturasCriticas = [];
+
+    if (!DB_GANADO.historial) return;
+    DB_GANADO.historial.forEach(h => {
+      if (h.estatus !== 'PENDIENTE') return;
+      let saldoUsd = h.saldoPendienteUsd !== undefined ? h.saldoPendienteUsd : h.totalUsd;
+      if (saldoUsd > 0.01 && h.vence && h.vence <= hoy) facturasCriticas.push(h);
+    });
+
+    if (facturasCriticas.length > 0) {
+      banner.style.display = 'block';
+      banner.style.background = '#f8d7da';
+      banner.style.color = '#721c24';
+      banner.style.borderColor = '#dc3545';
+      let html = `🚨 <strong>PAGOS DE CRÉDITO VENCIDOS O PARA HOY:</strong><ul style="margin-left:20px; margin-top:4px;">`;
+      facturasCriticas.forEach(f => {
+        let saldo = f.saldoPendienteUsd !== undefined ? f.saldoPendienteUsd : f.totalUsd;
+        html += `<li><strong>${f.proveedor}</strong> (${f.ref}): $${fmtBs(saldo)} - Vence: ${f.vence}</li>`;
+      });
+      html += `</ul>`;
+      contenido.innerHTML = html;
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
+  function botonVaciarBaseDeDatosSeguro() {
+    let clave = prompt("Ingrese la clave para borrar datos:");
+    if (clave !== PIN_ADMIN) {
+      alert("❌ Clave incorrecta. Operación cancelada.");
+      return;
+    }
+    if (!confirm("⚠️ ¿Desea borrar toda la base de datos del sistema? Esta acción no se puede deshacer.")) return;
+    DB_GANADO.historial = [];
+    DB_GANADO.facturasMargen = [];
+    DB_GANADO.recepcionesCharcuteria = [];
+    DB_GANADO.recepcionesProteinas = [];
+    DB_GANADO.cierresDiarios = [];
+    DB_GANADO.categoriasPersonalizadas = [];
+    DB_GANADO.lotesDespostadosHistorial = [];
+    DB_GANADO.gastosNegocio = [];
+    for(let k in DB_GANADO.cortesRes) DB_GANADO.cortesRes[k].stock = 0;
+    guardarDatosFirebase();
+  }
+
+  ponerFechaHoy('mgFecha');
+  ponerFechaHoy('fechaLote');
+  ponerFechaHoy('fechaPolloCochino');
+  ponerFechaHoy('fechaChorizo');
+  ponerFechaHoy('fechaCierre');
+  ponerFechaHoy('gastoFecha');
+  ponerFechaHoy('repGananciaDesde');
+  ponerFechaHoy('repGananciaHasta');
+</script>
+
+</body>
+</html>
